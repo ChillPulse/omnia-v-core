@@ -55,9 +55,11 @@ tools/build_pwa.py          gzip-сборка PWA, лимит 150 КБ
 
 Пины оставлены как в ТЗ, в `config_pins.h` помечены ⚠.
 
-1. **SD-карта на GPIO 35/36/37 конфликтовала с Octal PSRAM.** На плате N16R8 эти линии заняты внутренней шиной
-   PSRAM (на фото подписаны SPIIO6 / SPIIO7 / SPIDQS). **Решено переносом:** SCK=GPIO10, MOSI=GPIO8, MISO=GPIO15,
-   CS=GPIO38 (`config_pins.h`). GPIO 38 на плате подписан как BULTIN LED; код его не использует. Перенос проверить на железе.
+1. **SD-карта на GPIO 35/36/37/38 конфликтовала с Octal PSRAM.** GPIO 33–37 заняты внутренней шиной Octal PSRAM
+   на N16R8 (на фото подписаны SPIIO6 / SPIIO7 / SPIDQS). **Решено переносом** (вариант владельца):
+   SCK=GPIO15, MOSI=GPIO2, MISO=GPIO8, CS=GPIO10. I2C SDA для BH1750 перенесен на GPIO38: это единственный свободный
+   выходной пин. На плате GPIO38 подключен к встроенному LED — проверить на железе, что нагрузка LED не мешает шине.
+   GPIO14 не используется для I2C: это SCL дисплея.
 2. **GPIO 39–42 — JTAG (MTCK/MTDO/MTDI/MTMS).** Используются для TPA mute (39) и энкодера (40–42).
    Аппаратная отладка через JTAG на этих пинах будет недоступна.
 3. **GPIO 3 — strapping/JTAG-источник** (ИК-приемник TSOP). **GPIO 45 — strapping VDD_SPI** (I2C SCL для BH1750):
@@ -117,7 +119,7 @@ tools/build_pwa.py          gzip-сборка PWA, лимит 150 КБ
 | DLNA DMR (`/dlna/desc.xml`, POST `/dlna/stream`) | 🟡 (нет SSDP и SOAP) |
 | Радио: поиск (Radio Browser API с телефона) | ✅ ⚠ |
 | Радио: воспроизведение HTTP-потока на устройстве | ❌ (`PLAY_URL` сейчас только логируется) |
-| Медиатека SD / индекс | ❌ (SD — пины конфликтуют, см. выше) |
+| Медиатека SD / индекс | ❌ (пины SD перенесены с PSRAM, сама медиатека не написана) |
 | USB MSC | ❌ (заглушка) |
 | USB MUX и VBUS | ✅ ⚠ |
 | AirPlay, SMB, Bluetooth, UAC1 | ❌ |
@@ -139,7 +141,7 @@ tools/build_pwa.py          gzip-сборка PWA, лимит 150 КБ
 
 ## Открытые вопросы к владельцу проекта
 
-1. Проверить на железе новые пины SD (10/8/15/38), в частности BULTIN LED на GPIO 38.
+1. Проверить на железе новые пины SD (CS=10, SCK=15, MISO=8, MOSI=2) и I2C SDA на GPIO38 (встроенный LED).
 2. Проверить на железе: ориентацию ST7789 (mirror / swap_xy), уровни ADC-клавиатуры, strapping GPIO 3 и 45.
 3. Измерить задержку отклика PWA в standby (light sleep + Wi-Fi modem sleep).
 

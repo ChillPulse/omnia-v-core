@@ -23,14 +23,12 @@
 #define PIN_DISPLAY_CS     21
 #define PIN_DISPLAY_BL     47   // ШИМ подсветки (LEDC, 12 бит, 5 кГц)
 
-// === SD-карта (SPI3_HOST) ===  ПЕРЕНЕСЕНО с GPIO 35–37 (заняты Octal PSRAM на N16R8)
-// Решение владельца проекта: переносим на свободные пины. Проверено по фото платы:
-// GPIO 8, 10, 15 не заняты в карте проекта. GPIO 38 подписан на плате как BULTIN LED —
-// на стороне кода светодиод не используется; проверить на железе.
-#define PIN_SD_SCK         10
-#define PIN_SD_MOSI         8
-#define PIN_SD_MISO        15
-#define PIN_SD_CS          38
+// === SD-карта (SPI3_HOST) ===  ПЕРЕНЕСЕНО с GPIO 35–38 (GPIO 33–37 заняты Octal PSRAM на N16R8)
+// Вариант владельца проекта: CS=10, SCK=15, MISO=8, MOSI=2 (проверено по фото платы).
+#define PIN_SD_CS          10
+#define PIN_SD_SCK         15
+#define PIN_SD_MISO         8
+#define PIN_SD_MOSI         2
 
 // === Коммутация USB (74HC4052D, AO3401 + BC847, делитель VBUS) ===
 #define PIN_USB_SEL        18
@@ -41,8 +39,11 @@
 #define PIN_AMP_MUTE       39   // ⚠ MTCK (JTAG)
 #define PIN_AMP_POWER_REG   9   // Триггер реле блока питания УМЗЧ
 
-// === Датчик освещенности BH1750 (I2C_NUM_0, 400 кГц) ===  ⚠ GPIO45 — strapping-пин
-#define PIN_I2C_SDA         2
+// === Датчик освещенности BH1750 (I2C_NUM_0, 400 кГц) ===
+// SDA=38: единственный свободный выходной GPIO после переноса SD. На плате GPIO 38 подключен к встроенному LED;
+// проверить на железе, что нагрузка LED не мешает шине. GPIO 14 НЕ используется: это PIN_DISPLAY_SCL.
+// SCL=45 — strapping-пин (VDD_SPI); внешняя подтяжка 4.7 кОм может повлиять на загрузку.
+#define PIN_I2C_SDA        38
 #define PIN_I2C_SCL        45
 
 // === Инкрементальный энкодер (PCNT) ===  ⚠ GPIO40–42 — JTAG
