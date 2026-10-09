@@ -7,12 +7,13 @@
  * Полярность mute (g_amp_mute_polarity): 0 = HIGH означает mute (код ТЗ Тома 1 и 5).
  * Последовательности включения выполняются в отдельной задаче, чтобы не блокировать UI.
  *
- * Standby: вход в deep sleep НЕ выполняется, потому что ТЗ требует сохранить сессию PWA
- * (Wi-Fi modem sleep + light sleep). Настройка пробуждения по VBUS записана для будущего режима.
+ * Standby: deep sleep НЕ используется. Решение владельца: сохранять сессию PWA
+ * (Wi-Fi modem sleep + light sleep, CPU 40 МГц). Пробуждение по VBUS через deep sleep не реализовано.
  */
 
 #include "omnia.h"
 #include "esp_sleep.h"
+#include "esp_wifi.h"
 #include "driver/gpio.h"
 #include "esp_pm.h"
 #include "esp_log.h"
@@ -78,6 +79,10 @@ void enter_omnia_standby_sleep(void)
     // Противоречие ТЗ (deep sleep vs. сохранение сессии PWA) не решено — см. README, раздел «Открытые решения».
     (void)g_usb_autowake_enabled;
 
+    // Решение владельца: сессия PWA сохраняется. Wi-Fi переходит в модемный сон (минимальный),
+    // WebSocket-соединение остается открытым. Задержка первого ответа определяется DTIM-интервалом роутера.
+    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+
     esp_pm_config_t pm = {};
     pm.max_freq_mhz = 240;
     pm.min_freq_mhz = 40;          // ТЗ: CPU снижается до 40 МГц
@@ -89,6 +94,7 @@ void enter_omnia_standby_sleep(void)
 void exit_omnia_standby(void)
 {
     ESP_LOGI(TAG, "Выход из Standby");
+    esp_wifi_set_ps(WIFI_PS_NONE);
     esp_pm_config_t pm = {};
     pm.max_freq_mhz = 240;
     pm.min_freq_mhz = 240;

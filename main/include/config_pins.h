@@ -23,10 +23,13 @@
 #define PIN_DISPLAY_CS     21
 #define PIN_DISPLAY_BL     47   // ШИМ подсветки (LEDC, 12 бит, 5 кГц)
 
-// === SD-карта (SPI3_HOST) ===  ⚠ GPIO 35–37 заняты Octal PSRAM на N16R8
-#define PIN_SD_SCK         36
-#define PIN_SD_MOSI        37
-#define PIN_SD_MISO        35
+// === SD-карта (SPI3_HOST) ===  ПЕРЕНЕСЕНО с GPIO 35–37 (заняты Octal PSRAM на N16R8)
+// Решение владельца проекта: переносим на свободные пины. Проверено по фото платы:
+// GPIO 8, 10, 15 не заняты в карте проекта. GPIO 38 подписан на плате как BULTIN LED —
+// на стороне кода светодиод не используется; проверить на железе.
+#define PIN_SD_SCK         10
+#define PIN_SD_MOSI         8
+#define PIN_SD_MISO        15
 #define PIN_SD_CS          38
 
 // === Коммутация USB (74HC4052D, AO3401 + BC847, делитель VBUS) ===

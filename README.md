@@ -55,9 +55,9 @@ tools/build_pwa.py          gzip-сборка PWA, лимит 150 КБ
 
 Пины оставлены как в ТЗ, в `config_pins.h` помечены ⚠.
 
-1. **SD-карта на GPIO 35/36/37 (+CS 38) конфликтует с Octal PSRAM.** На плате N16R8 эти линии
-   заняты внутренней шиной PSRAM (на фото подписаны SPIIO6 / SPIIO7 / SPIDQS). SPI3 на них работать не будет.
-   **Открытое решение:** перенести SD на свободные пины (нужно подтверждение), либо отказаться от Octal PSRAM.
+1. **SD-карта на GPIO 35/36/37 конфликтовала с Octal PSRAM.** На плате N16R8 эти линии заняты внутренней шиной
+   PSRAM (на фото подписаны SPIIO6 / SPIIO7 / SPIDQS). **Решено переносом:** SCK=GPIO10, MOSI=GPIO8, MISO=GPIO15,
+   CS=GPIO38 (`config_pins.h`). GPIO 38 на плате подписан как BULTIN LED; код его не использует. Перенос проверить на железе.
 2. **GPIO 39–42 — JTAG (MTCK/MTDO/MTDI/MTMS).** Используются для TPA mute (39) и энкодера (40–42).
    Аппаратная отладка через JTAG на этих пинах будет недоступна.
 3. **GPIO 3 — strapping/JTAG-источник** (ИК-приемник TSOP). **GPIO 45 — strapping VDD_SPI** (I2C SCL для BH1750):
@@ -69,8 +69,8 @@ tools/build_pwa.py          gzip-сборка PWA, лимит 150 КБ
 
 | Вопрос | Решение в коде | Причина |
 |---|---|---|
-| Полярность mute УМЗЧ | `g_amp_mute_polarity = 0`: HIGH = mute | Тома 1 и 5 — HIGH = mute; Том 4 описывает Active LOW. Переключается через `SET_CONFIG AMP_MUTE_POLARITY`. |
-| Standby: пробуждение по VBUS | Deep sleep **не** включается; сессия PWA сохраняется, CPU понижается, light sleep | В ТЗ противоречие: deep sleep по VBUS разрывает Wi-Fi-сессию PWA. Флаг `USB_AUTOWAKE` сохраняется, но пока не управляет deep sleep. |
+| Полярность mute УМЗЧ | `g_amp_mute_polarity = 0`: HIGH = mute | **Подтверждено владельцем.** Тома 1 и 5 — HIGH = mute; Том 4 описывает Active LOW. Переключается через `SET_CONFIG AMP_MUTE_POLARITY`. |
+| Standby: пробуждение по VBUS | **Light sleep, сессия PWA сохраняется.** Deep sleep не используется; CPU до 40 МГц, Wi-Fi modem sleep | **Подтверждено владельцем.** Deep sleep отключает Wi-Fi и вызывает холодный старт (5–10 с). Флаг `USB_AUTOWAKE` хранится, но на deep sleep не влияет. |
 
 ## Отклонения от ТЗ (сознательные)
 
@@ -133,16 +133,15 @@ tools/build_pwa.py          gzip-сборка PWA, лимит 150 КБ
 | Room Correction Wizard (микрофон браузера) | 🟡 (нужен HTTPS или localhost; калибровка по пиковым резонансам) |
 | BH1750 (освещенность) | ✅ ⚠ |
 | Питание УМЗЧ: реле → XSMT → mute TPA, задержки | ✅ ⚠ |
-| Standby с deep sleep и VBUS-пробуждением | ❌ (решение открыто) |
-| Standby light sleep, понижение CPU до 40 МГц | 🟡 ⚠ |
+| Standby с deep sleep и VBUS-пробуждением | ❌ (не нужен по решению владельца) |
+| Standby light sleep, Wi-Fi modem sleep, CPU 40 МГц | 🟡 ⚠ (задержка отклика зависит от DTIM роутера, не измерена) |
 | OTA через `/api/ota_upgrade` | ✅ ⚠ (плавность звука во время записи не проверена) |
 
 ## Открытые вопросы к владельцу проекта
 
-1. Пины SD (35/36/37/38) конфликтуют с Octal PSRAM — выбрать новые пины или пересмотреть PSRAM.
-2. Подтвердить полярность mute УМЗЧ (по умолчанию HIGH = mute).
-3. Standby: deep sleep с VBUS-пробуждением или сохранение сессии PWA?
-4. Проверить на железе: ориентацию ST7789 (mirror / swap_xy), уровни ADC-клавиатуры, strapping GPIO 3 и 45.
+1. Проверить на железе новые пины SD (10/8/15/38), в частности BULTIN LED на GPIO 38.
+2. Проверить на железе: ориентацию ST7789 (mirror / swap_xy), уровни ADC-клавиатуры, strapping GPIO 3 и 45.
+3. Измерить задержку отклика PWA в standby (light sleep + Wi-Fi modem sleep).
 
 ## Лицензия
 
