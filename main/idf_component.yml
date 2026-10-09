@@ -1,0 +1,4 @@
+dependencies:
+  idf: ">=5.3.0"
+  lvgl/lvgl: "~9.2.0"
+  joltwallet/littlefs: "^1.14.0"

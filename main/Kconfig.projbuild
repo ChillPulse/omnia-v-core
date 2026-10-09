@@ -1,0 +1,14 @@
+menu "Omnia (v-core): сеть"
+
+    config OMNIA_WIFI_SSID
+        string "Wi-Fi SSID (домашняя сеть)"
+        default "CHANGE_ME"
+        help
+            Имя Wi-Fi сети, к которой подключается стример.
+            Задается только локально (menuconfig), в репозиторий не коммитится.
+
+    config OMNIA_WIFI_PASSWORD
+        string "Wi-Fi пароль"
+        default ""
+
+endmenu

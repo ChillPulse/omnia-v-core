@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<title>Omnia v-core</title>
+<style>
+:root{--bg:#0b0d10;--glass:rgba(255,255,255,.06);--line:rgba(255,255,255,.1);--txt:#e9edf2;--dim:#8b95a1;--acc:#3ddc97;--warn:#ff7a59}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-weight:300}
+#app{height:100%;display:flex;flex-direction:column;max-width:520px;margin:0 auto}
+main{flex:1;overflow:auto;padding:16px 16px 92px}
+section{display:none}section.on{display:block}
+.glass{background:var(--glass);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding:14px}
+.cover{width:100%;aspect-ratio:1;border-radius:22px;background:radial-gradient(circle at 30% 20%,#2f6b5a,#0f1b22 70%);box-shadow:0 20px 50px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-size:72px;font-weight:200;position:relative}
+.badge{position:absolute;left:12px;bottom:12px;font-size:12px;background:rgba(0,0,0,.45);padding:6px 10px;border-radius:999px;border:1px solid var(--line)}
+h1{font-size:22px;font-weight:600;margin:14px 0 2px}
+.artist{color:var(--dim);font-size:15px}
+input[type=range]{width:100%;accent-color:var(--acc)}
+.btns{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:14px}
+button{font:inherit;color:var(--txt);background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:12px 0;cursor:pointer}
+button.pri{background:var(--acc);color:#04130c;border-color:transparent;font-weight:500}
+button.on{border-color:var(--acc);color:var(--acc)}
+button:disabled{opacity:.4}
+nav{position:fixed;bottom:0;left:0;right:0;margin:0 auto;max-width:520px;display:grid;grid-template-columns:repeat(4,1fr);background:rgba(11,13,16,.85);backdrop-filter:blur(16px);border-top:1px solid var(--line);padding:8px 6px calc(8px + env(safe-area-inset-bottom))}
+nav button{border:0;background:none;font-size:12px;padding:6px 0;color:var(--dim)}
+nav button.on{color:var(--acc)}
+.row{display:flex;gap:8px;align-items:center}
+.muted{color:var(--dim);font-size:13px}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+.seg button{font-size:13px;padding:10px 0}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tiles button{font-size:14px;padding:16px 0}
+.list{margin-top:12px}
+.item{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.item small{color:var(--dim)}
+.eq{display:grid;grid-template-columns:repeat(15,1fr);gap:2px;height:180px;margin-top:12px}
+.eq div{display:flex;flex-direction:column;align-items:center;font-size:9px;color:var(--dim)}
+.eq input{writing-mode:vertical-lr;direction:rtl;flex:1;width:100%;accent-color:var(--acc)}
+.kv{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+select,input[type=text],input[type=number]{background:#11151a;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block}
+.dot.ok{background:var(--acc)}
+svg.curve{width:100%;height:130px;margin-top:8px}
+h2{font-size:15px;font-weight:500;margin:18px 0 8px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="app">
+<main>
+
+<!-- ============ Вкладка 1: Главный плеер ============ -->
+<section id="t-play" class="on">
+  <div class="cover"><span id="coverTxt">Ω</span><span class="badge" id="fmt">—</span></div>
+  <h1 id="track">Нет трека</h1>
+  <div class="artist" id="artist">—</div>
+  <div class="glass" style="margin-top:14px">
+    <input type="range" id="seek" min="0" max="100" value="0">
+    <div class="row muted" style="justify-content:space-between"><span id="el">0:00</span><span id="tot">0:00</span></div>
+  </div>
+  <div class="btns">
+    <button id="bPower" title="Питание">⏻</button>
+    <button id="bMute" title="Mute">🔇</button>
+    <button id="bPrev" title="Назад">⏮</button>
+    <button id="bPlay" class="pri" title="Воспроизведение">▶</button>
+    <button id="bNext" title="Вперед">⏭</button>
+    <button id="bRep" title="Повтор">🔁</button>
+  </div>
+  <div class="glass" style="margin-top:14px">
+    <div class="row"><span class="muted" style="width:82px">Громкость</span><input type="range" id="vol" min="0" max="100"><span id="volv" style="width:32px;text-align:right">—</span></div>
+  </div>
+  <div class="glass" style="margin-top:14px;font-size:13px" id="status">—</div>
+</section>
+
+<!-- ============ Вкладка 2: Медиатека и Радио ============ -->
+<section id="t-lib">
+  <div class="seg">
+    <button data-src="SD" class="srcBtn">SD-Card</button>
+    <button data-src="USB" class="srcBtn">USB-Flash</button>
+    <button data-src="NAS" class="srcBtn">NAS</button>
+    <button data-src="RADIO" class="srcBtn">Web-Radio</button>
+  </div>
+  <div id="libLocal" class="glass muted">
+    Индекс медиатеки (SD/USB) пока не подключен: поиск по PSRAM-кэшу появится вместе с индексатором (см. README).
+  </div>
+  <div id="libRadio" style="display:none">
+    <div class="tiles" id="genres"></div>
+    <div class="row" style="margin-top:12px">
+      <span class="muted">Макс. битрейт</span>
+      <select id="maxBr"><option value="320" selected>320 kbps</option><option value="256">256</option><option value="128">128</option></select>
+    </div>
+    <div class="list" id="stations"></div>
+    <h2>Быстрый Линк</h2>
+    <div class="glass">
+      <input type="text" id="linkName" placeholder="Название" style="width:100%;margin-bottom:8px">
+      <input type="text" id="linkUrl" placeholder="https://…/stream" style="width:100%;margin-bottom:8px">
+      <button id="linkAdd" style="width:100%">Добавить станцию</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Вкладка 3: DSP Студия ============ -->
+<section id="t-dsp">
+  <div class="glass">
+    <div class="muted">Итоговая АЧХ: Room Correction + User PEQ</div>
+    <svg class="curve" id="curve" viewBox="0 0 300 130" preserveAspectRatio="none"></svg>
+  </div>
+  <div class="eq" id="eq"></div>
+  <div class="row" style="margin-top:10px;gap:6px">
+    <button id="presetFlat" style="flex:1">Flat</button>
+    <button id="presetWarm" style="flex:1">Warm</button>
+    <button id="presetBright" style="flex:1">Bright</button>
+  </div>
+  <h2>Room Correction Wizard</h2>
+  <div class="glass">
+    <div class="muted" style="margin-bottom:10px">Стример воспроизводит розовый шум, телефон измеряет микрофоном комнату и подавляет резонансы 20–300 Гц. Требуется HTTPS или localhost (ограничение браузера для микрофона).</div>
+    <button id="wizard" style="width:100%">Запустить калибровку</button>
+    <div class="muted" id="wizLog" style="margin-top:8px"></div>
+  </div>
+  <h2>Anti-реклама (интернет-радио)</h2>
+  <div class="seg">
+    <button data-ad="0" class="adBtn">Выкл</button>
+    <button data-ad="1" class="adBtn">Мягкий</button>
+    <button data-ad="2" class="adBtn">Агрессивный</button>
+  </div>
+</section>
+
+<!-- ============ Вкладка 4: Инженерная конфигурация ============ -->
+<section id="t-sys">
+  <div class="glass">
+    <div class="kv"><span>USB Auto-Wakeup (VBUS)</span><input type="checkbox" id="cfgUsb"></div>
+    <div class="kv"><span>Полярность mute УМЗЧ</span>
+      <select id="cfgPol"><option value="0">HIGH = mute</option><option value="1">LOW = mute</option></select></div>
+    <div class="kv"><span>Standby: экран</span>
+      <select id="cfgDisp"><option value="0">Deep Sleep</option><option value="1">Chrono</option><option value="2">Meteo</option></select></div>
+    <div class="kv"><span>Standby: RGB-кольцо</span>
+      <select id="cfgRing"><option value="0">Выкл</option><option value="1">Пульс</option><option value="2">Такты</option><option value="3">Погода</option></select></div>
+  </div>
+  <h2>Прошивка OTA</h2>
+  <div class="glass">
+    <input type="file" id="otaFile" accept=".bin" style="width:100%;margin-bottom:10px">
+    <button id="otaGo" style="width:100%">Загрузить omnia_firmware.bin</button>
+    <div class="muted" id="otaLog" style="margin-top:8px"></div>
+  </div>
+</section>
+
+</main>
+
+<nav>
+  <button data-tab="t-play" class="on">Плеер</button>
+  <button data-tab="t-lib">Медиа</button>
+  <button data-tab="t-dsp">DSP</button>
+  <button data-tab="t-sys">Система</button>
+</nav>
+</div>
+
+<script>
+(() => {
+  // ---------- Состояние и WebSocket ----------
+  let st = {}, ws = null, wsOk = false, seeking = false;
+  const $ = id => document.getElementById(id);
+
+  function connect() {
+    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+    ws.onopen = () => { wsOk = true; render(); };
+    ws.onclose = () => { wsOk = false; render(); setTimeout(connect, 1500); };
+    ws.onmessage = e => { try { st = JSON.parse(e.data); render(); } catch (_) {} };
+  }
+  function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+  const fmtT = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+  // ---------- Рендер плеера ----------
+  function render() {
+    $('track').textContent = st.track || 'Нет трека';
+    $('artist').textContent = st.artist || '—';
+    $('fmt').textContent = st.format || '—';
+    $('coverTxt').textContent = (st.track || 'Ω')[0].toUpperCase();
+    $('el').textContent = fmtT(st.elapsed || 0);
+    $('tot').textContent = fmtT(st.total || 0);
+    if (!seeking && st.total) $('seek').value = Math.round(100 * (st.elapsed || 0) / st.total);
+    $('bMute').classList.toggle('on', !!st.is_muted);
+    $('bPlay').textContent = st.state === 'PLAYING' ? '❚❚' : '▶';
+    if (document.activeElement !== $('vol')) $('vol').value = st.volume ?? 0;
+    $('volv').textContent = (st.volume ?? '—') + '%';
+    $('status').textContent =
+      `${wsOk ? '● связь' : '○ нет связи'} · состояние: ${st.state || '—'} · источник: ${st.source || '—'} · ` +
+      `Wi-Fi: ${st.wifi_rssi ?? '—'} dBm · свет: ${st.lux ?? '—'} lx`;
+    document.querySelectorAll('.srcBtn').forEach(b => b.classList.toggle('on', b.dataset.src === st.source));
+    document.querySelectorAll('.adBtn').forEach(b => b.classList.toggle('on', +b.dataset.ad === st.anti_ad));
+  }
+
+  $('bPower').onclick = () => send({ cmd: 'KEY', key: 'POWER' });
+  $('bMute').onclick = () => send({ cmd: 'MUTE', active: !st.is_muted });
+  $('bPrev').onclick = () => send({ cmd: 'TRANSPORT', action: 'PREV' });
+  $('bNext').onclick = () => send({ cmd: 'TRANSPORT', action: 'NEXT' });
+  $('bPlay').onclick = () => send({ cmd: 'TRANSPORT', action: 'TOGGLE' });
+  $('bRep').onclick = () => $('bRep').classList.toggle('on');
+  $('vol').oninput = e => { $('volv').textContent = e.target.value + '%'; };
+  $('vol').onchange = e => send({ cmd: 'VOLUME', value: +e.target.value });
+  $('seek').oninput = () => { seeking = true; };
+  $('seek').onchange = e => { seeking = false; if (st.total) send({ cmd: 'SEEK', position_sec: Math.round(st.total * e.target.value / 100) }); };
+
+  // ---------- Навигация ----------
+  document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+    document.querySelectorAll('section').forEach(s => s.classList.toggle('on', s.id === b.dataset.tab));
+  });
+
+  // ---------- Медиа: источники и радио (Radio Browser API напрямую с телефона) ----------
+  document.querySelectorAll('.srcBtn').forEach(b => b.onclick = () => {
+    send({ cmd: 'TRANSPORT', action: 'SOURCE_SELECT', value: b.dataset.src });
+    $('libRadio').style.display = b.dataset.src === 'RADIO' ? 'block' : 'none';
+    $('libLocal').style.display = b.dataset.src === 'RADIO' ? 'none' : 'block';
+  });
+  const GENRES = ['Jazz', 'Rock', 'Classical', 'Ambient', 'Electronic', 'News'];
+  $('genres').innerHTML = GENRES.map(g => `<button data-g="${g}">${g}</button>`).join('');
+  $('genres').onclick = e => { if (e.target.dataset.g) loadStations(e.target.dataset.g); };
+
+  async function loadStations(tag) {
+    $('stations').innerHTML = '<div class="muted">Загрузка…</div>';
+    try {
+      const url = `https://de1.api.radio-browser.info/json/stations/search?tag=${encodeURIComponent(tag.toLowerCase())}` +
+                  `&order=votes&reverse=true&limit=30&hidebroken=true&bitrateMax=${$('maxBr').value}`;
+      const list = await (await fetch(url)).json();
+      $('stations').innerHTML = list.map(s =>
+        `<div class="item" data-url="${encodeURIComponent(s.url_resolved || s.url)}" data-name="${encodeURIComponent(s.name)}">` +
+        `<span>${escapeHtml(s.name)}<br><small>${escapeHtml(s.codec || '')} ${s.bitrate || ''} kbps · ${escapeHtml(s.country || '')}</small></span>` +
+        `<span>▶</span></div>`).join('') || '<div class="muted">Станции не найдены</div>';
+    } catch (err) {
+      $('stations').innerHTML = '<div class="muted">Нет доступа к Radio API (проверьте интернет телефона)</div>';
+    }
+  }
+  $('stations').onclick = e => {
+    const it = e.target.closest('.item');
+    if (it) send({ cmd: 'PLAY_URL', url: decodeURIComponent(it.dataset.url), name: decodeURIComponent(it.dataset.name) });
+  };
+  $('linkAdd').onclick = () => {
+    const name = $('linkName').value.trim(), url = $('linkUrl').value.trim();
+    if (!name || !/^https?:\/\//.test(url)) { alert('Укажите название и ссылку http(s)://'); return; }
+    send({ cmd: 'ADD_STATION', name, url });
+    $('linkName').value = ''; $('linkUrl').value = '';
+  };
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+  // ---------- DSP: 15 полос PEQ и АЧХ ----------
+  const FREQS = Array.from({ length: 15 }, (_, i) => 25 * Math.pow(16000 / 25, i / 14));
+  const bands = FREQS.map(f => ({ f: Math.round(f), q: 1.4, g: 0 }));
+  const roomBands = [];   // до 5 полос Room Correction: {f,q,g}
+  const SR = 44100;
+
+  function peakingMag(f0, q, gdb, f) {
+    const A = Math.pow(10, gdb / 40), w0 = 2 * Math.PI * f0 / SR, w = 2 * Math.PI * f / SR;
+    const al = Math.sin(w0) / (2 * q), cw = Math.cos(w0);
+    const b = [1 + al * A, -2 * cw, 1 - al * A], a = [1 + al / A, -2 * cw, 1 - al / A];
+    const num = Math.hypot(b[0] + b[1] * Math.cos(w) + b[2] * Math.cos(2 * w), b[1] * Math.sin(w) + b[2] * Math.sin(2 * w));
+    const den = Math.hypot(a[0] + a[1] * Math.cos(w) + a[2] * Math.cos(2 * w), a[1] * Math.sin(w) + a[2] * Math.sin(2 * w));
+    return 20 * Math.log10(num / den);
+  }
+
+  function drawCurve() {
+    const W = 300, H = 130, pts = [];
+    for (let i = 0; i <= 120; i++) {
+      const f = 20 * Math.pow(1000, i / 120);
+      let db = 0;
+      bands.forEach(b => { if (b.g) db += peakingMag(b.f, b.q, b.g, f); });
+      roomBands.forEach(b => { db += peakingMag(b.f, b.q, b.g, f); });
+      const x = (i / 120) * W, y = H / 2 - db * (H / 2) / 18;
+      pts.push(`${x.toFixed(1)},${Math.max(0, Math.min(H, y)).toFixed(1)}`);
+    }
+    $('curve').innerHTML = `<line x1="0" x2="${W}" y1="${H / 2}" y2="${H / 2}" stroke="rgba(255,255,255,.15)"/>` +
+      `<polyline fill="none" stroke="#3ddc97" stroke-width="2" points="${pts.join(' ')}"/>`;
+  }
+
+  $('eq').innerHTML = bands.map((b, i) =>
+    `<div><input type="range" min="-12" max="12" step="0.5" value="0" data-i="${i}"><span>${b.f >= 1000 ? (b.f / 1000).toFixed(b.f >= 10000 ? 0 : 1) + 'k' : b.f}</span></div>`).join('');
+  $('eq').oninput = e => {
+    const i = +e.target.dataset.i;
+    bands[i].g = +e.target.value;
+    drawCurve();
+  };
+  $('eq').onchange = e => {
+    const i = +e.target.dataset.i, b = bands[i];
+    send({ cmd: 'USER_PEQ', band: i, freq: b.f, q: b.q, gain: b.g });
+  };
+  function applyPreset(list) {
+    list.forEach((g, i) => {
+      bands[i].g = g;
+      const inp = document.querySelector(`#eq input[data-i="${i}"]`);
+      if (inp) inp.value = g;
+      send({ cmd: 'USER_PEQ', band: i, freq: bands[i].f, q: bands[i].q, gain: g });
+    });
+    drawCurve();
+  }
+  const flat = Array(15).fill(0);
+  $('presetFlat').onclick = () => applyPreset(flat);
+  $('presetWarm').onclick = () => applyPreset([3, 3, 2.5, 2, 1.5, 1, 0.5, 0, 0, -0.5, -1, -1, -1.5, -1.5, -1.5]);
+  $('presetBright').onclick = () => applyPreset([-1, -1, -0.5, 0, 0, 0, 0.5, 1, 1.5, 2, 2, 2.5, 2.5, 2, 1.5]);
+  drawCurve();
+
+  // ---------- Room Correction Wizard ----------
+  $('wizard').onclick = async () => {
+    const log = m => { $('wizLog').textContent = m; };
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      log('Микрофон недоступен: откройте интерфейс по HTTPS или localhost.');
+      return;
+    }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    } catch (e) { log('Нет доступа к микрофону'); return; }
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const an = ctx.createAnalyser();
+    an.fftSize = 8192;
+    ctx.createMediaStreamSource(stream).connect(an);
+    send({ cmd: 'TEST_NOISE', active: true });
+    log('Измерение… 5 секунд, соблюдайте тишину');
+    const bins = an.frequencyBinCount, acc = new Float32Array(bins), buf = new Float32Array(bins);
+    let frames = 0;
+    await new Promise(res => {
+      const t = setInterval(() => {
+        an.getFloatFrequencyData(buf);
+        for (let i = 0; i < bins; i++) acc[i] += buf[i];
+        frames++;
+        if (frames >= 50) { clearInterval(t); res(); }
+      }, 100);
+    });
+    send({ cmd: 'TEST_NOISE', active: false });
+    stream.getTracks().forEach(t => t.stop());
+    const sr = ctx.sampleRate;
+    ctx.close();
+
+    const hz = i => i * sr / (2 * bins);
+    const avg = Array.from(acc, v => v / frames);
+    const ref = mean(avg.filter((_, i) => hz(i) >= 300 && hz(i) <= 2000));
+    const peaks = [];
+    for (let i = 2; i < bins - 2; i++) {
+      const f = hz(i);
+      if (f < 20 || f > 300) continue;
+      if (avg[i] > avg[i - 1] && avg[i] > avg[i + 1] && avg[i] - ref > 4) peaks.push({ i, f, d: avg[i] - ref });
+    }
+    peaks.sort((a, b) => b.d - a.d);
+    const top = peaks.slice(0, 5);
+    top.forEach((p, idx) => {
+      const gain = -Math.min(9, Math.round(p.d * 2) / 2);
+      roomBands[idx] = { f: Math.round(p.f), q: 8, g: gain };
+      send({ cmd: 'CALIBRATE_ROOM', band: idx, freq: Math.round(p.f), q: 8, gain });
+    });
+    drawCurve();
+    log(top.length ? `Подавлено резонансов: ${top.length} (${top.map(p => Math.round(p.f) + ' Гц').join(', ')})`
+                   : 'Резонансов не найдено. Комната в порядке.');
+  };
+  function mean(a) { return a.reduce((s, v) => s + v, 0) / (a.length || 1); }
+
+  // ---------- Anti-AD ----------
+  document.querySelectorAll('.adBtn').forEach(b => b.onclick = () => send({ cmd: 'SET_CONFIG', param: 'ANTI_AD', value: +b.dataset.ad }));
+
+  // ---------- Система ----------
+  $('cfgUsb').onchange = e => send({ cmd: 'SET_CONFIG', param: 'USB_AUTOWAKE', value: e.target.checked ? 1 : 0 });
+  $('cfgPol').onchange = e => send({ cmd: 'SET_CONFIG', param: 'AMP_MUTE_POLARITY', value: +e.target.value });
+  $('cfgDisp').onchange = e => send({ cmd: 'SET_CONFIG', param: 'STANDBY_DISPLAY_MODE', value: +e.target.value });
+  $('cfgRing').onchange = e => send({ cmd: 'SET_CONFIG', param: 'STANDBY_RING_MODE', value: +e.target.value });
+
+  $('otaGo').onclick = async () => {
+    const f = $('otaFile').files[0];
+    if (!f) { $('otaLog').textContent = 'Выберите файл .bin'; return; }
+    if (!confirm('Прошивка перезагрузит стример. Продолжить?')) return;
+    $('otaLog').textContent = `Загрузка ${f.name} (${(f.size / 1024).toFixed(0)} КБ)…`;
+    try {
+      const r = await fetch('/api/ota_upgrade', { method: 'POST', body: f, headers: { 'Content-Type': 'application/octet-stream' } });
+      $('otaLog').textContent = await r.text();
+    } catch (e) { $('otaLog').textContent = 'Ошибка сети во время загрузки'; }
+  };
+
+  connect();
+})();
+</script>
+</body>
+</html>
