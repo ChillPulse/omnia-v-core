@@ -202,10 +202,16 @@ typedef struct {
     float    manual_atten_db;   /* Ручной пред-аттенюатор (0.0 .. -18.0 dB) */
 } omnia_hpf_headroom_t;
 
-/* 0x11: CMD_LOAD_ROOM_PEQ */
+/* 0x11: CMD_LOAD_ROOM_PEQ (Акустическая рум-коррекция: 5 полос PEQ + задержки АС + фаза + трим) */
 typedef struct {
     uint8_t             enable;
-    uint8_t             band_count; /* <= OMNIA_MAX_ROOM_PEQ_BANDS (5) */
+    uint8_t             band_count;     /* <= OMNIA_MAX_ROOM_PEQ_BANDS (5) */
+    uint8_t             invert_phase_l; /* 0 = 0°, 1 = 180° инверсия фазы левой АС */
+    uint8_t             invert_phase_r; /* 0 = 0°, 1 = 180° инверсия фазы правой АС */
+    float               delay_l_ms;     /* Задержка выравнивания левой АС: 0.00 .. 20.00 мс (шаг 0.01 мс ~ 3.4 мм) */
+    float               delay_r_ms;     /* Задержка выравнивания правой АС: 0.00 .. 20.00 мс (шаг 0.01 мс ~ 3.4 мм) */
+    float               trim_l_db;      /* Калибровочный трим левой АС: -12.0 .. +6.0 dB */
+    float               trim_r_db;      /* Калибровочный трим правой АС: -12.0 .. +6.0 dB */
     omnia_biquad_band_t bands[OMNIA_MAX_ROOM_PEQ_BANDS];
 } omnia_room_peq_t;
 

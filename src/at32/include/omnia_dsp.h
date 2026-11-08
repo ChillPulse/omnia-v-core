@@ -17,6 +17,8 @@ extern "C" {
 #endif
 
 /* Размеры линий задержки (размещаются в секции .sram_ext 128 КБ на AT32) */
+#define OMNIA_ROOM_DELAY_RING_SIZE      1024U   /* Степень двойки: до 20.0 мс (960 сэмплов @ 48 кГц, маска 1023) */
+#define OMNIA_ROOM_MAX_DELAY_MS         20.0f   /* До 6.86 м разницы расстояний до левой/правой АС */
 #define OMNIA_AETHER_MAX_DELAY_SAMPLES  640U    /* До ~13.3 мс стерео/сайд сцены при 48 кГц */
 #define OMNIA_LIMITER_MAX_LOOKAHEAD     160U    /* До ~3.33 мс упреждения пиков при 48 кГц */
 
@@ -31,6 +33,8 @@ typedef struct {
 
 /* Внешняя арена буферов задержки (передаётся из .sram_ext на AT32 или статики в тестах) */
 typedef struct {
+    float room_delay_l[OMNIA_ROOM_DELAY_RING_SIZE];
+    float room_delay_r[OMNIA_ROOM_DELAY_RING_SIZE];
     float aether_delay_line[OMNIA_AETHER_MAX_DELAY_SAMPLES];
     float limiter_buf_l[OMNIA_LIMITER_MAX_LOOKAHEAD];
     float limiter_buf_r[OMNIA_LIMITER_MAX_LOOKAHEAD];
@@ -66,9 +70,18 @@ typedef struct {
     omnia_biquad_state_t subsonic_biquad;
     float                headroom_gain_lin;
 
-    /* 3. Room PEQ (5 полос) + 4. User PEQ (10 полос) */
+    /* 3. Room PEQ (5 полос + суб-сэмпловые задержки АС + фаза + трим) + 4. User PEQ (10 полос) */
     omnia_room_peq_t     room_cfg;
     omnia_biquad_state_t room_biquads[OMNIA_MAX_ROOM_PEQ_BANDS];
+    float                room_delay_target_l;
+    float                room_delay_target_r;
+    float                room_delay_cur_l;
+    float                room_delay_cur_r;
+    float                room_gain_target_l;
+    float                room_gain_target_r;
+    float                room_gain_cur_l;
+    float                room_gain_cur_r;
+    uint16_t             room_delay_wr_idx;
     omnia_user_peq_t     user_cfg;
     omnia_biquad_state_t user_biquads[OMNIA_MAX_USER_PEQ_BANDS];
 

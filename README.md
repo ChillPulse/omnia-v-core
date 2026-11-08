@@ -11,7 +11,7 @@
   - Универсальный драйвер **любой 3.3V SPI NOR Flash 25-й серии** на площадке `PA4..PA7` (`JEDEC 0x9F + JESD216 SFDP 0x5A`) с прозрачным резервом во внутреннюю Flash AT32 (если внешняя микросхема не припаяна).
   - Полный **9-звенный 32-bit Float студийный DSP** с плавным сглаживанием коэффициентов без щелчков и честным режимом **`Bit-Perfect Direct`** (побитовая передача 1:1):
     1. `Input Sanitizer & Subsonic DC HPF (15–30 Гц)` + `Dynamic Headroom`
-    2. `Room Acoustic PEQ` (5 полос RBJ DF2T + импорт REW)
+    2. `Room Acoustic Correction` (5 полос модального PEQ + **независимые суб-сэмпловые задержки левой/правой АС `0..20 мс` с точностью `3.4 мм`, калибровочный трим L/R и инверсия фазы `0°/180°`**)
     3. `User Master PEQ` (10 полос RBJ DF2T)
     4. `Anti-Ad 2.0 Smooth Limiter/AGC` (для веб-радио)
     5. `Psychoacoustic Bass (VBB)` (генератор чётных/нечётных гармоник баса для любой акустики)
@@ -21,10 +21,12 @@
 
 ---
 
-## Документация и аппаратная схема
+## Документация и наглядные схемы сборки
 
 - Полное единое русскоязычное ТЗ и таблица всех пинов: [`docs/OMNIA_MASTER_SPEC_v2.0.md`](docs/OMNIA_MASTER_SPEC_v2.0.md)
-- Иллюстрированная памятка переделки вашего экрана `TENSTAR ROBOT 2.8" ST7789` под 8-битную шину 8080 (`#1..#16`): [`docs/ST7789_8080_8P_MOD_GUIDE.png`](docs/ST7789_8080_8P_MOD_GUIDE.png)
+- **Схема №1 — Поэтапная сборка в 3 шага (11 проводов базового старта) и прошивка:** [`docs/OMNIA_WIRING_STAGE1_CORE.png`](docs/OMNIA_WIRING_STAGE1_CORE.png)
+- **Схема №2 — Подключение микросхем (`74HC125`, `AHCT125`), транзисторов (`BC547 / 2N3904`, `AO3401`), `GY-PCM5102A` и обход без `FSUSB30MUX`:** [`docs/OMNIA_SCHEMATIC_IC_TRANSISTORS.png`](docs/OMNIA_SCHEMATIC_IC_TRANSISTORS.png)
+- **Схема №3 — Переделка экрана `TENSTAR ROBOT 2.8" ST7789` под 8-битную шину 8080 (`#1..#16`):** [`docs/ST7789_8080_8P_MOD_GUIDE.png`](docs/ST7789_8080_8P_MOD_GUIDE.png)
 
 ---
 

@@ -315,7 +315,7 @@ static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
                   ctx->hpf_cfg.hpf_enable ? OMNIA_BIQUAD_HIGH_PASS : OMNIA_BIQUAD_OFF,
                   ctx->sample_rate_hz, ctx->hpf_cfg.hpf_freq_hz, ctx->hpf_cfg.hpf_q, 0.0f);
 
-    /* 3. Room PEQ */
+    /* 3. Room PEQ + задержки времени прихода АС + калибровка трима и фазы */
     for (uint8_t i = 0; i < OMNIA_MAX_ROOM_PEQ_BANDS; ++i) {
         if (ctx->room_cfg.enable && i < ctx->room_cfg.band_count) {
             const omnia_biquad_band_t *b = &ctx->room_cfg.bands[i];
@@ -325,6 +325,17 @@ static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
             ctx->room_biquads[i].bypass = true;
         }
     }
+    const float max_d_samp = (float)(OMNIA_ROOM_DELAY_RING_SIZE - 4U);
+    ctx->room_delay_target_l = clampf(
+        (clampf(ctx->room_cfg.delay_l_ms, 0.0f, OMNIA_ROOM_MAX_DELAY_MS) * 0.001f) * (float)ctx->sample_rate_hz,
+        0.0f, max_d_samp);
+    ctx->room_delay_target_r = clampf(
+        (clampf(ctx->room_cfg.delay_r_ms, 0.0f, OMNIA_ROOM_MAX_DELAY_MS) * 0.001f) * (float)ctx->sample_rate_hz,
+        0.0f, max_d_samp);
+    const float pol_l = ctx->room_cfg.invert_phase_l ? -1.0f : 1.0f;
+    const float pol_r = ctx->room_cfg.invert_phase_r ? -1.0f : 1.0f;
+    ctx->room_gain_target_l = pol_l * db_to_lin(clampf(ctx->room_cfg.trim_l_db, -12.0f, 6.0f));
+    ctx->room_gain_target_r = pol_r * db_to_lin(clampf(ctx->room_cfg.trim_r_db, -12.0f, 6.0f));
 
     /* 4. User PEQ */
     for (uint8_t i = 0; i < OMNIA_MAX_USER_PEQ_BANDS; ++i) {
@@ -423,6 +434,7 @@ void omnia_dsp_reset_states(omnia_dsp_ctx_t *ctx)
     ctx->limiter_env       = 1.0f;
     ctx->limiter_hold_gain = 1.0f;
     ctx->limiter_hold_cnt  = 0U;
+    ctx->room_delay_wr_idx = 0U;
     ctx->aether_wr_idx     = 0U;
     ctx->limiter_wr_idx    = 0U;
     ctx->dc_track_l    = 0.0f;
@@ -448,7 +460,12 @@ void omnia_dsp_init(omnia_dsp_ctx_t *ctx, omnia_dsp_delay_arena_t *arena, uint32
     ctx->wet_mix_slew       = calc_slew_coeff(ctx->sample_rate_hz, 30.0f);
     ctx->rms_in_env         = 1.0e-4f;
     ctx->rms_out_env        = 1.0e-4f;
+    ctx->room_gain_cur_l    = 1.0f;
+    ctx->room_gain_cur_r    = 1.0f;
+    ctx->room_gain_target_l = 1.0f;
+    ctx->room_gain_target_r = 1.0f;
     ctx->limiter_env        = 1.0f;
+    ctx->limiter_hold_gain  = 1.0f;
     ctx->min_limiter_gain   = 1.0f;
     ctx->prng_state         = 0xA55A1234U;
 
@@ -824,6 +841,46 @@ void omnia_dsp_process_block_i32(
         if ((mask & OMNIA_DSP_BIT_LOUDNESS) && ctx->loudness_cfg.enable) {
             biquad_step_stereo(&ctx->loudness_low_ls,  &l, &r);
             biquad_step_stereo(&ctx->loudness_high_hs, &l, &r);
+        }
+
+        /* --- Физическое выравнивание АС (Room Time-Alignment Delay + Trim + Phase 0°/180°):
+         *     выполняется ПОСЛЕ M/S матрицы AETHER, чтобы не вносить гребенчатый сдвиг фаз в AETHER,
+         *     но точно свести время прихода звуковой волны левой и правой колонки в точку прослушивания! --- */
+        if ((mask & OMNIA_DSP_BIT_ROOM_PEQ) && ctx->room_cfg.enable) {
+            ctx->room_delay_cur_l += 0.002f * (ctx->room_delay_target_l - ctx->room_delay_cur_l);
+            ctx->room_delay_cur_r += 0.002f * (ctx->room_delay_target_r - ctx->room_delay_cur_r);
+            if (fabsf(ctx->room_delay_target_l - ctx->room_delay_cur_l) < 1.0e-4f) {
+                ctx->room_delay_cur_l = ctx->room_delay_target_l;
+            }
+            if (fabsf(ctx->room_delay_target_r - ctx->room_delay_cur_r) < 1.0e-4f) {
+                ctx->room_delay_cur_r = ctx->room_delay_target_r;
+            }
+            ctx->room_gain_cur_l += param_slew * (ctx->room_gain_target_l - ctx->room_gain_cur_l);
+            ctx->room_gain_cur_r += param_slew * (ctx->room_gain_target_r - ctx->room_gain_cur_r);
+
+            if (ctx->arena && (ctx->room_delay_cur_l > 0.001f || ctx->room_delay_cur_r > 0.001f)) {
+                const uint32_t mask_ring = OMNIA_ROOM_DELAY_RING_SIZE - 1U;
+                const uint32_t wr = ctx->room_delay_wr_idx;
+                ctx->arena->room_delay_l[wr] = l;
+                ctx->arena->room_delay_r[wr] = r;
+
+                const uint32_t dl_int  = (uint32_t)ctx->room_delay_cur_l;
+                const float    dl_frac = ctx->room_delay_cur_l - (float)dl_int;
+                const float    sl0     = ctx->arena->room_delay_l[(wr - dl_int) & mask_ring];
+                const float    sl1     = ctx->arena->room_delay_l[(wr - dl_int - 1U) & mask_ring];
+                l = sl0 + dl_frac * (sl1 - sl0);
+
+                const uint32_t dr_int  = (uint32_t)ctx->room_delay_cur_r;
+                const float    dr_frac = ctx->room_delay_cur_r - (float)dr_int;
+                const float    sr0     = ctx->arena->room_delay_r[(wr - dr_int) & mask_ring];
+                const float    sr1     = ctx->arena->room_delay_r[(wr - dr_int - 1U) & mask_ring];
+                r = sr0 + dr_frac * (sr1 - sr0);
+
+                ctx->room_delay_wr_idx = (uint16_t)((wr + 1U) & mask_ring);
+            }
+
+            l *= ctx->room_gain_cur_l;
+            r *= ctx->room_gain_cur_r;
         }
 
         /* --- Плавный обход и честное A/B сравнение с выравниванием громкости по RMS --- */

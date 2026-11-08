@@ -200,6 +200,51 @@ static void test_full_dsp_aether_subbass_mono_and_limiter(void)
            max_abs_out);
 }
 
+static void test_room_speaker_delay_and_phase(void)
+{
+    static omnia_dsp_delay_arena_t arena;
+    static omnia_dsp_ctx_t dsp;
+
+    omnia_dsp_init(&dsp, &arena, 48000U);
+    omnia_dsp_set_mute(&dsp, false, 0U);
+    omnia_dsp_set_volume(&dsp, 0.0f, 0.0f, 0.0f, 0U);
+    dsp.limiter_cfg.enable        = 0U;
+    dsp.limiter_cfg.tpdf_dither_en = 0U;
+
+    /* Настраиваем рум-коррекцию: задержка левой АС = 0.25 мс (ровно 12.0 сэмплов @ 48 кГц),
+     * правая АС = 0.00 мс, но с переворотом фазы 180° (invert_phase_r = 1) */
+    omnia_room_peq_t room = {0};
+    room.enable         = 1U;
+    room.band_count     = 0U;
+    room.delay_l_ms     = 0.25f;
+    room.delay_r_ms     = 0.00f;
+    room.invert_phase_l = 0U;
+    room.invert_phase_r = 1U;
+    omnia_dsp_apply_room_peq(&dsp, &room);
+    omnia_dsp_set_bypass_mask(&dsp, OMNIA_DSP_BIT_ROOM_PEQ, 0U);
+
+    /* Даём параметрам задержки и фазы плавно установиться на тишине */
+    int32_t zero_blk[128] = {0};
+    for (int k = 0; k < 150; ++k) {
+        omnia_dsp_process_block_i32(&dsp, zero_blk, zero_blk, 64U);
+    }
+
+    /* Подаём единичный импульс в сэмпле #0 на оба канала L и R */
+    int32_t in_imp[128]  = {0};
+    int32_t out_imp[128] = {0};
+    in_imp[0] =  1000000000; /* L[0] = +0.4656 */
+    in_imp[1] =  1000000000; /* R[0] = +0.4656 */
+
+    omnia_dsp_process_block_i32(&dsp, in_imp, out_imp, 64U);
+
+    /* Правый канал (0 мс, фаза 180°) должен выдать отрицательный импульс сразу в сэмпле #0,
+     * а левый канал (0.25 мс = 12 сэмплов, фаза 0°) — положительный импульс ровно в сэмпле #12! */
+    assert(out_imp[1] < -990000000);
+    assert(abs(out_imp[0]) < 1000);
+    assert(out_imp[12 * 2] > 990000000);
+    printf("[OK] Рум-коррекция АС: суб-сэмпловая задержка (0.25 мс -> сэмпл #12) и инверсия фазы 180° точны!\n");
+}
+
 int main(void)
 {
     printf("=== Запуск модульных тестов OMNIA v2.0 ===\n");
@@ -207,6 +252,7 @@ int main(void)
     test_protocol_framing_and_noise_recovery();
     test_bit_perfect_exact_passthrough();
     test_full_dsp_aether_subbass_mono_and_limiter();
+    test_room_speaker_delay_and_phase();
     printf("=== ВСЕ ТЕСТЫ УСПЕШНО ПРОЙДЕНЫ ===\n");
     return 0;
 }
