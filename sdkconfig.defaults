@@ -1,31 +1,28 @@
-# ==== Omnia (v-core): базовая конфигурация для ESP32-S3 N16R8 (YD-ESP32-S3) ====
+# ==============================================================================
+# Конфигурация ESP-IDF v5.x для платы ESP32-S3-N16R8 (16MB QIO + 8MB Octal PSRAM)
+# ==============================================================================
 CONFIG_IDF_TARGET="esp32s3"
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 
-# Flash 16 МБ, QIO 80 МГц
-CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+# Flash 16 МБ @ 80 МГц QIO
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 
-# Внешняя Octal PSRAM 8 МБ (ТЗ, Том 1, Гл. 1)
+# Octal PSRAM 8 МБ @ 80 МГц с выделением через heap_caps_malloc(MALLOC_CAP_SPIRAM)
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_CAPS_ALLOC=y
 
-# Таблица разделов (см. partitions.csv: ota_0 / ota_1 / littlefs)
+# Кэши ядра для минимальной латентности декодирования и LVGL 60 FPS
+CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y
+CONFIG_ESP32S3_DATA_CACHE_64KB=y
+
+# Схема разделов 16 МБ (Dual OTA + хранилище пресетов/индексов/Web-UI)
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 
-# Производительность и CPU
-CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+# Производительность компилятора и частота тиков FreeRTOS 1000 Гц
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
 CONFIG_FREERTOS_HZ=1000
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
-CONFIG_PM_ENABLE=y
-
-# HTTP-сервер и WebSocket (ТЗ, Том 4)
-CONFIG_HTTPD_WS_SUPPORT=y
-CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
-
-# LVGL: 16-bit цвет, байтовая перестановка для ST7789 (big-endian по SPI)
-CONFIG_LV_COLOR_DEPTH=16
-CONFIG_LV_COLOR_16_SWAP=y

@@ -1,150 +1,51 @@
-# Omnia (v-core)
+# OMNIA Flagship Streamer & Studio DSP v2.0 (`omnia-v-core`)
 
-Hi-Fi аудиостример и DSP на **YD-ESP32-S3** (ESP32-S3 N16R8: 16 МБ flash, 8 МБ Octal PSRAM).
-Реализация по «Мастер-ТЗ: Аудиостример OMNIA (v-core)», Тома 1–5.
+Единый монорепозиторий прошивок двухпроцессорного флагманского аудиостримера, сетевого транспорта и студийного аудиопроцессора **OMNIA**:
 
-> **Статус: код написан, но НЕ собран и НЕ прошит.** ESP-IDF в среде разработки не установлен.
-> Матрица статусов — в разделе «Статус реализации». Первая сборка и проверка на железе — обязательны.
+- **Ядро 1 — `ESP32-S3-N16R8` (`[env:esp32s3_omnia]`, чистый `ESP-IDF v5.x`, `-O3 -flto`, строго без Arduino):**
+  - **Core 1:** изолированный ведомый аудио-движок `I2S0 Slave TX` (32-bit Phillips, нулевой джиттер от мастера AT32), статические пулы в 8 МБ Octal PSRAM (`1.5 МБ` сжатый поток + `2.5 МБ` PCM) + `24 КБ` DMA во внутренней SRAM, Gapless / Web-Radio / USB OTG Hot-Switch (`Host MSC ↔ Device UAC1`).
+  - **Core 0:** протокольный мастер `OMNIA v2` (`UART1` 921600 бод, `0xAA55 + CRC16-CCITT`, SEQ/ACK/Retry), дисплей `TENSTAR 2.8" ST7789` по **8-битной параллельной шине I80 DMA** (60 FPS), самообучаемый универсальный ИК-пульт (`RMT RX`), кольцо `12× WS2812` с биометрическим пульсом Standby **«lub-dub»** и сверхлёгкий смартфонный Web-UI (PWA).
+- **Ядро 2 — `WeAct AT32F403ACGU7 BlackPill` (`[env:at32f403_dsp]`, `at32firmlib`, Cortex-M4F 240 МГц + FPU):**
+  - Автоматическое безопасное раскрытие **224 КБ внутренней SRAM** (`EOPB0 = 0xFE`) при первом включении чипа.
+  - Тактовый мастер `I2S2 + I2S2EXT` Full-Duplex DMA (`44.1 / 48 кГц` Bit-Perfect + опциональный `MCLK 256×Fs` на `PA3`), бесщёлчковая автоматика (`XSMT`, `AMP_MUTE`, `RELAY`), автопереключатель USB «на лету» (`FSUSB30MUX + AO3401 + VBUS_DET`).
+  - Универсальный драйвер **любой 3.3V SPI NOR Flash 25-й серии** на площадке `PA4..PA7` (`JEDEC 0x9F + JESD216 SFDP 0x5A`) с прозрачным резервом во внутреннюю Flash AT32 (если внешняя микросхема не припаяна).
+  - Полный **9-звенный 32-bit Float студийный DSP** с плавным сглаживанием коэффициентов без щелчков и честным режимом **`Bit-Perfect Direct`** (побитовая передача 1:1):
+    1. `Input Sanitizer & Subsonic DC HPF (15–30 Гц)` + `Dynamic Headroom`
+    2. `Room Acoustic PEQ` (5 полос RBJ DF2T + импорт REW)
+    3. `User Master PEQ` (10 полос RBJ DF2T)
+    4. `Anti-Ad 2.0 Smooth Limiter/AGC` (для веб-радио)
+    5. `Psychoacoustic Bass (VBB)` (генератор чётных/нечётных гармоник баса для любой акустики)
+    6. **Флагманский процессор сцены `Studio AETHER`** (12 параметров в реальном времени: `Master Blend`, `Stereo Width`, `Center Voice Anchor`, `Sub-Bass Mono Lock`, `Side HPF`, `Silk Air Exciter`, `Dynamic De-Harsh Guard`, `3D All-Pass Stage Depth`, `Triode Even Harmonics`, `Headphone Crossfeed`)
+    7. `Dynamic Loudness (ISO 226)` + сглаженная громкость + **мгновенное сравнение `A/B Instant Compare`** с автовыравниванием субъективной громкости
+    8. `Look-Ahead True-Peak Limiter` (`1.5 мс` линия предпросмотра в расширенной SRAM) + `DC Offset Guard` + `24-bit TPDF Dither`
 
-## Требования
+---
 
-- ESP-IDF **v5.3** (CI настроен на 5.3; `idf_component.yml` допускает ≥5.3.0)
-- Компоненты (через IDF Component Manager): `lvgl/lvgl ~9.2.0`, `joltwallet/littlefs ^1.14.0`
-- Python 3 (для сборки PWA)
+## Документация и аппаратная схема
 
-## Сборка
+- Полное единое русскоязычное ТЗ и таблица всех пинов: [`docs/OMNIA_MASTER_SPEC_v2.0.md`](docs/OMNIA_MASTER_SPEC_v2.0.md)
+- Иллюстрированная памятка переделки вашего экрана `TENSTAR ROBOT 2.8" ST7789` под 8-битную шину 8080 (`#1..#16`): [`docs/ST7789_8080_8P_MOD_GUIDE.png`](docs/ST7789_8080_8P_MOD_GUIDE.png)
 
-```bash
-# 1. PWA -> littlefs_data/index.html.gz (обязательно до idf.py build)
-python3 tools/build_pwa.py
+---
 
-# 2. Настройка Wi-Fi (SSID и пароль НЕ хранятся в репозитории)
-idf.py set-target esp32s3
-idf.py menuconfig          # Omnia (v-core) -> Wi-Fi SSID / Password
+## Быстрый старт в VS Code + PlatformIO
 
-# 3. Сборка и прошивка
-idf.py build flash monitor
-```
+1. Установите расширение **PlatformIO IDE** в **VS Code**.
+2. Склонируйте репозиторий и откройте папку `omnia-v-core`:
+   ```bash
+   git clone https://github.com/ChillPulse/omnia-v-core.git
+   cd omnia-v-core
+   code .
+   ```
+3. В нижней синей панели VS Code выберите нужное окружение (`Project Environment Switcher`) или используйте терминал PlatformIO:
+   - **Сборка и прошивка DSP-ядра `AT32F403ACGU7`** (через CMSIS-DAP / DAPLink или ST-Link V2):
+     ```bash
+     pio run -e at32f403_dsp -t upload
+     ```
+     *(Если у вас программатор ST-Link V2 вместо CMSIS-DAP, поменяйте в `platformio.ini` строку `upload_protocol = cmsis-dap` на `upload_protocol = stlink`).*
+   - **Сборка и прошивка стримера `ESP32-S3-N16R8`** (по кабелю USB):
+     ```bash
+     pio run -e esp32s3_omnia -t upload -t monitor
+     ```
 
-Параметры `sdkconfig.defaults`: flash QIO 80 МГц, Octal PSRAM 80 МГц, CPU 240 МГц,
-PM включен, `-O3` с LTO (в корневом CMake), httpd WebSocket, LVGL 16 бит с `LV_COLOR_16_SWAP`.
-
-Разделы (`partitions.csv`): nvs, phy_init, otadata, ota_0 и ota_1 (по 4 МБ), littlefs (0x7E0000).
-
-## Структура
-
-```
-main/
-  main.cpp                  app_main: NVS, PSRAM, буфер, DSP, очереди, задачи Core 0 / Core 1
-  omnia_state.cpp           состояние (мьютекс), транспорт, источники, seek, ключи
-  include/config_pins.h     карта GPIO (ТЗ Том 1) — менять пины ТОЛЬКО здесь
-  include/omnia.h           общие типы и прототипы модулей
-  audio_engine/             Core 0: I2S0 bit-perfect, decode -> float32, FFT, DLNA-ingest, кольцевой буфер 4 МБ PSRAM
-  dsp_processor/            двухслойный DF2T-биквад DSP (5 Room + 15 User), Dynamic Headroom, Anti-AD
-  media_indexer/            SD (SPI3, /sd), USB MUX/VBUS; драйвер USB MSC — заглушка
-  ui_engine/                Core 1: LVGL 9 на ST7789 (SPI2, 60 МГц), энкодер, ADC-клавиатура,
-                            спектр-визуализатор, IR RMT RX, httpd (WS /ws + PWA + DLNA + OTA)
-  system/                   Wi-Fi STA, BH1750, управление УМЗЧ/питанием, OTA
-web/index.html              PWA (источник, один файл без сборщика)
-littlefs_data/index.html.gz сгенерированный бандл PWA (tools/build_pwa.py)
-tools/build_pwa.py          gzip-сборка PWA, лимит 150 КБ
-.github/workflows/build.yml CI: сборка esp32s3 на ESP-IDF v5.3
-```
-
-## Конфликты аппаратной карты (требуют решения до сборки железа)
-
-Пины оставлены как в ТЗ, в `config_pins.h` помечены ⚠.
-
-1. **SD-карта на GPIO 35/36/37/38 конфликтовала с Octal PSRAM.** GPIO 33–37 заняты внутренней шиной Octal PSRAM
-   на N16R8 (на фото подписаны SPIIO6 / SPIIO7 / SPIDQS). **Решено переносом** (вариант владельца):
-   SCK=GPIO15, MOSI=GPIO2, MISO=GPIO8, CS=GPIO10. I2C SDA для BH1750 перенесен на GPIO38: это единственный свободный
-   выходной пин. На плате GPIO38 подключен к встроенному LED — проверить на железе, что нагрузка LED не мешает шине.
-   GPIO14 не используется для I2C: это SCL дисплея.
-2. **GPIO 39–42 — JTAG (MTCK/MTDO/MTDI/MTMS).** Используются для TPA mute (39) и энкодера (40–42).
-   Аппаратная отладка через JTAG на этих пинах будет недоступна.
-3. **GPIO 3 — strapping/JTAG-источник** (ИК-приемник TSOP). **GPIO 45 — strapping VDD_SPI** (I2C SCL для BH1750):
-   внешняя подтяжка к 3.3 В может повлиять на загрузку. Рекомендуется проверка на железе.
-4. **ADC-клавиатура (GPIO 1, 12 дБ аттенюация):** верхние кнопки близки к насыщению АЦП; разброс уровней
-   ~120–160 мВ при допуске ±50 мВ. Требуется проверка на железе.
-
-## Противоречия ТЗ, которые сейчас решены по умолчанию (подлежат подтверждению)
-
-| Вопрос | Решение в коде | Причина |
-|---|---|---|
-| Полярность mute УМЗЧ | `g_amp_mute_polarity = 0`: HIGH = mute | **Подтверждено владельцем.** Тома 1 и 5 — HIGH = mute; Том 4 описывает Active LOW. Переключается через `SET_CONFIG AMP_MUTE_POLARITY`. |
-| Standby: пробуждение по VBUS | **Light sleep, сессия PWA сохраняется.** Deep sleep не используется; CPU до 40 МГц, Wi-Fi modem sleep | **Подтверждено владельцем.** Deep sleep отключает Wi-Fi и вызывает холодный старт (5–10 с). Флаг `USB_AUTOWAKE` хранится, но на deep sleep не влияет. |
-
-## Отклонения от ТЗ (сознательные)
-
-- **DSP:** собственный DF2T-биквад на C с коэффициентами RBJ peaking EQ. Подпись `dsps_biquad_gen` в esp-dsp
-  не проверена; `dsps_biquad_f32_ae32` — целевая замена для оптимизации.
-- **Стерео в биквадах:** в ТЗ интерливед стерео обрабатывается как моно с общим состоянием. Исправлено: раздельные `w_left` / `w_right` на каждый канал.
-- **Dynamic Headroom:** в ТЗ gain записывается в `coeffs[i][4]` (слот a2). Исправлено: отдельные массивы gain.
-- **IR (RMT RX):** в ТЗ использованы `num1/num2` и `rmt_receive` с NULL-буфером — это неверно для ESP-IDF v5.x.
-  Исправлено: `duration0/duration1`, валидный буфер; ISR копирует фрейм в очередь, задача Core 1 пишет в NVS
-  (ESP_LOG и NVS в ISR недопустимы).
-- **Инициализация I2S:** в ТЗ `i2s_channel_init_std_match` (не существует). Используется `i2s_channel_init_std_mode`.
-- **HTTP:** один экземпляр `httpd` на порту 80 вместо двух (DLNA и web backend конфликтовали бы).
-- **PWA:** один vanilla-JS файл, без Vue/Preact и без шага сборки, для лимита 150 КБ.
-- **WebSocket:** рассылка через `httpd_queue_work`; входящий JSON валидируется по типам и диапазонам.
-- **Аудиоформаты:** 16/24/32-бит декодируются в float32 без апсэмплинга. Контейнер I2S фиксирован на 32 бита
-  (Padded) для PCM5102A. Частота дискретизации переконфигурируется при смене формата; буфер очищается при смене формата и при seek.
-  Выход ограничен ±1.0.
-- **Anti-AD (Dynamic Headroom):** headroom = минус сумма положительных gain обоих слоев.
-  Лимитер: мягкий порог 0.7 FS, агрессивный 0.4 FS, attack 0.25, release 0.00015/сэмпл, связанный стерео.
-- **Громкость:** квадратичная кривая `(vol/100)^2`; mute принудительно ставит gain 0.
-- **Тест-шум:** розовый шум Kellett около −12 dBFS, в обход DSP.
-- **Спектр:** Hann 512 точек, 64 лог-полосы 20 Гц–20 кГц, шкала −80..0 дБ; rise 0.85, fall 0.12, peak hold падает на 1 за кадр.
-- **Энкодер:** PCNT 4x, 4 отсчета на щелчок; нажатие → PLAY после 3 низких чтений. Клавиатура: допуск ±50 мВ, debounce 2 чтения.
-- **IR-самообучение:** хэш FNV-1a по длительностям, округленным до 100 мкс; 9 слотов; NVS `omnia_ir` / `templates`;
-  импульсы короче 20 мкс отбрасываются, паузы длиннее 100 мс завершают фрейм.
-- **Дисплей:** ST7789 320×240, BGR, invert on, swap_xy on, mirror on — **проверить на панели**.
-  Подсветка LEDC 12 бит, 5 кГц, по умолчанию 80%.
-
-## Статус реализации
-
-Легенда: ✅ реализовано в коде · 🟡 частично / заглушка · ❌ не реализовано · ⚠ не собрано и не проверено на железе.
-**Все пункты ⚠ — код не компилировался.**
-
-| Модуль / функция | Статус |
-|---|---|
-| Структура проекта, CMake, partitions, sdkconfig, CI | ✅ ⚠ |
-| Карта GPIO (`config_pins.h`) | ✅ (конфликты — см. выше) |
-| Кольцевой буфер 4 МБ PSRAM | ✅ ⚠ |
-| I2S0 bit-perfect, PCM5102A, 32-бит Padded | ✅ ⚠ |
-| Декодирование 16/24/32 бит в float32 | ✅ ⚠ |
-| Декодеры FLAC/ALAC/APE/WavPack/MP3/AAC | ❌ |
-| DSP (2 слоя, Dynamic Headroom, Anti-AD) | ✅ ⚠ (свой биквад, не esp-dsp) |
-| FFT 512 + 64 полосы | ✅ ⚠ |
-| DLNA DMR (`/dlna/desc.xml`, POST `/dlna/stream`) | 🟡 (нет SSDP и SOAP) |
-| Радио: поиск (Radio Browser API с телефона) | ✅ ⚠ |
-| Радио: воспроизведение HTTP-потока на устройстве | ❌ (`PLAY_URL` сейчас только логируется) |
-| Медиатека SD / индекс | ❌ (пины SD перенесены с PSRAM, сама медиатека не написана) |
-| USB MSC | ❌ (заглушка) |
-| USB MUX и VBUS | ✅ ⚠ |
-| AirPlay, SMB, Bluetooth, UAC1 | ❌ |
-| LVGL 9 на ST7789 (double buffer, DMA) | ✅ ⚠ |
-| Экран плеера 320×240 | ✅ ⚠ |
-| Спектр-визуализатор (rise/fall, peak hold) | ✅ ⚠ |
-| Энкодер PCNT, ADC-клавиатура | ✅ ⚠ |
-| IR RMT RX (самообучение, NVS) | ✅ ⚠ |
-| RGB-кольцо WS2812B (RMT TX) | ❌ |
-| Wi-Fi STA | ✅ ⚠ |
-| httpd: WS `/ws`, JSON-команды, рассылка статуса | ✅ ⚠ |
-| PWA (4 вкладки, WS, DSP-студия, Room Wizard, OTA) | ✅ ⚠ |
-| Room Correction Wizard (микрофон браузера) | 🟡 (нужен HTTPS или localhost; калибровка по пиковым резонансам) |
-| BH1750 (освещенность) | ✅ ⚠ |
-| Питание УМЗЧ: реле → XSMT → mute TPA, задержки | ✅ ⚠ |
-| Standby с deep sleep и VBUS-пробуждением | ❌ (не нужен по решению владельца) |
-| Standby light sleep, Wi-Fi modem sleep, CPU 40 МГц | 🟡 ⚠ (задержка отклика зависит от DTIM роутера, не измерена) |
-| OTA через `/api/ota_upgrade` | ✅ ⚠ (плавность звука во время записи не проверена) |
-
-## Открытые вопросы к владельцу проекта
-
-1. Проверить на железе новые пины SD (CS=10, SCK=15, MISO=8, MOSI=2) и I2C SDA на GPIO38 (встроенный LED).
-2. Проверить на железе: ориентацию ST7789 (mirror / swap_xy), уровни ADC-клавиатуры, strapping GPIO 3 и 45.
-3. Измерить задержку отклика PWA в standby (light sleep + Wi-Fi modem sleep).
-
-## Лицензия
-
-Не указана. Добавьте файл `LICENSE` по согласованию с автором.
+Также в разделе **Actions** на GitHub при каждом коммите автоматически прогоняются математические модульные тесты DSP/протокола и собираются готовые бинарные артефакты обеих плат (`omnia-at32f403-dsp-firmware` и `omnia-esp32s3-streamer-firmware`).

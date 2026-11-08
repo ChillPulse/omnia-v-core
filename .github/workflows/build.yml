@@ -1,18 +1,70 @@
-name: Build firmware
+name: OMNIA v2.0 Dual-MCU Build & DSP Tests
 
 on:
   push:
+    branches: [ "main" ]
   pull_request:
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
-  build:
+  dsp-unit-tests:
+    name: Host DSP & Protocol Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build with ESP-IDF
+      - name: Compile & Run Studio DSP + CRC16 Suite
+        run: |
+          gcc -O2 -Wall -Wextra -Werror \
+            -Ishared -Isrc/at32/include \
+            tests/test_dsp_and_proto.c src/at32/dsp_engine.c \
+            -lm -o tests/test_runner
+          ./tests/test_runner
+
+  build-at32-dsp:
+    name: Build AT32F403ACGU7 Studio DSP (PlatformIO)
+    runs-on: ubuntu-latest
+    needs: dsp-unit-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio-at32-${{ hashFiles('platformio.ini') }}
+      - name: Install PlatformIO & Build AT32F403 Firmware
+        run: |
+          pip install --upgrade platformio
+          pio run -e at32f403_dsp
+      - name: Upload AT32F403 Firmware Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: omnia-at32f403-dsp-firmware
+          path: |
+            .pio/build/at32f403_dsp/firmware.bin
+            .pio/build/at32f403_dsp/firmware.elf
+
+  build-esp32s3-host:
+    name: Build ESP32-S3-N16R8 Streamer (ESP-IDF v5.3)
+    runs-on: ubuntu-latest
+    needs: dsp-unit-tests
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ESP32-S3 Firmware via Official ESP-IDF v5.3
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.3
           target: esp32s3
-          path: .
+          command: idf.py build
+      - name: Upload ESP32-S3 Firmware Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: omnia-esp32s3-streamer-firmware
+          path: |
+            build/omnia-v-core.bin
+            build/omnia-v-core.elf
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin
