@@ -64,11 +64,10 @@ void app_main(void)
 
     /* 1. Инициализация энергонезависимого хранилища NVS (пресеты, Wi-Fi, обученные пульты ИК) */
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "NVS init: %s. Автостирание отключено, данные необходимо сохранить и проверить.", esp_err_to_name(ret));
+        return;
     }
-    ESP_ERROR_CHECK(ret);
 
     /* 2. Выделение неразрывных статических аудио-колец без фрагментации кучи */
     allocate_static_audio_pools();
@@ -112,6 +111,10 @@ void app_main(void)
     } else {
         ESP_LOGW(TAG, "Ожидание подключения платы AT32F403 по UART1 (GPIO7/GPIO8)...");
     }
+
+    /* Временная консоль для безопасной стендовой диагностики, без УМЗЧ. */
+    ret = omnia_bench_console_init();
+    if (ret != ESP_OK) ESP_LOGW(TAG, "Стендовая консоль недоступна: %s", esp_err_to_name(ret));
 
     /* Главный цикл супервизора Core 0 */
     while (1) {

@@ -21,6 +21,9 @@ jobs:
             -lm -o tests/test_runner
           ./tests/test_runner
           python -m unittest discover -s tests -p test_bench.py -v
+          gcc -O2 -Wall -Wextra -Werror -Isrc/esp32/include \
+            tests/test_bench_command.c src/esp32/bench_command.c -o /tmp/omnia-bench-test
+          /tmp/omnia-bench-test
 
   build-at32-dsp:
     name: Build AT32F403ACGU7 Studio DSP (PlatformIO)

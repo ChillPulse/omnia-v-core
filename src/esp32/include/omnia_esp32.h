@@ -54,6 +54,8 @@ void      omnia_at32_get_amp_ctrl_cfg(omnia_amp_ctrl_cfg_t *out_cfg);
 esp_err_t omnia_at32_sync_amp_ctrl_to_at32(void);
 esp_err_t omnia_at32_send_bt_ctrl(omnia_bt_action_t action, uint8_t param);
 void      omnia_at32_get_latest_status(omnia_at32_status_t *out_status);
+bool      omnia_at32_get_recent_status(omnia_at32_status_t *out_status, uint32_t max_age_ms);
+esp_err_t omnia_bench_console_init(void);
 void      omnia_at32_get_latest_meters(omnia_signal_meters_t *out_meters);
 void      omnia_at32_get_latest_bt_meta(omnia_bt_meta_evt_t *out_meta);
 

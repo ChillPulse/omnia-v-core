@@ -10,6 +10,7 @@
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "freertos/FreeRTOS.h"
@@ -35,6 +36,7 @@ static volatile uint8_t      g_last_ack_code  = OMNIA_STATUS_OK;
 
 static omnia_sys_info_t        g_cached_info;
 static omnia_at32_status_t     g_cached_status;
+static int64_t                 g_status_rx_us = 0;
 static omnia_signal_meters_t   g_cached_meters;
 static omnia_bt_meta_evt_t     g_cached_bt_meta;
 static uint8_t                 g_prev_vbus      = 0xFFU;
@@ -124,6 +126,7 @@ static void handle_at32_frame(const omnia_frame_hdr_t *hdr, const uint8_t *paylo
 
         xSemaphoreTake(g_state_lock, portMAX_DELAY);
         g_cached_status = st;
+        g_status_rx_us = esp_timer_get_time();
         xSemaphoreGive(g_state_lock);
 
         if (st.usb_vbus_detected != g_prev_vbus) {
@@ -223,7 +226,10 @@ esp_err_t omnia_at32_bridge_init(omnia_vbus_event_cb_t vbus_cb)
                                  UART_PIN_NO_CHANGE));
 
     /* Привязываем приёмник протокола к Core 0 (ядро управления и UI) */
-    xTaskCreatePinnedToCore(uart_rx_task, "at32_uart_rx", 4096, NULL, 12, NULL, 0);
+    if (xTaskCreatePinnedToCore(uart_rx_task, "at32_uart_rx", 4096, NULL, 12, NULL, 0) != pdPASS) {
+        ESP_LOGE(TAG, "Не удалось создать задачу UART RX");
+        return ESP_ERR_NO_MEM;
+    }
     ESP_LOGI(TAG, "Канал связи с AT32F403 запущен (UART1 TX=GPIO%d, RX=GPIO%d @ %u бод)",
              OMNIA_ESP_AT32_TX_GPIO, OMNIA_ESP_AT32_RX_GPIO, (unsigned)OMNIA_UART_DEFAULT_BAUD);
     return ESP_OK;
@@ -327,7 +333,11 @@ esp_err_t omnia_at32_switch_sample_rate_atomic(uint32_t new_fs_hz)
         return err;
     }
 
-    ESP_ERROR_CHECK_WITHOUT_ABORT(omnia_audio_i2s_reconfig_clock(new_fs_hz));
+    err = omnia_audio_i2s_reconfig_clock(new_fs_hz);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Ошибка настройки I2S; тракт остаётся в MUTE: %s", esp_err_to_name(err));
+        return err;
+    }
     vTaskDelay(pdMS_TO_TICKS(15));
 
     const omnia_cmd_mute_t unmute_req = { .ramp_ms = 25U, .hard_xsmt = 0U };
@@ -404,6 +414,18 @@ void omnia_at32_get_latest_status(omnia_at32_status_t *out_status)
     xSemaphoreTake(g_state_lock, portMAX_DELAY);
     *out_status = g_cached_status;
     xSemaphoreGive(g_state_lock);
+}
+
+bool omnia_at32_get_recent_status(omnia_at32_status_t *out_status, uint32_t max_age_ms)
+{
+    if (!out_status || !g_state_lock) return false;
+    xSemaphoreTake(g_state_lock, portMAX_DELAY);
+    const int64_t received_us = g_status_rx_us;
+    *out_status = g_cached_status;
+    xSemaphoreGive(g_state_lock);
+    const int64_t now = esp_timer_get_time();
+    return received_us > 0 && now >= received_us &&
+           (now - received_us) <= (int64_t)max_age_ms * 1000;
 }
 
 void omnia_at32_get_latest_meters(omnia_signal_meters_t *out_meters)

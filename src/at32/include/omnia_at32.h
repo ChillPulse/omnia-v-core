@@ -21,7 +21,7 @@
 #define OMNIA_ENABLE_USB_DAC 0 /* Включать только после отдельной проверки клоков и USB */
 #endif
 
-/* --- system_sram224.c: 240 МГц, раскрытие 224 КБ SRAM (EOPB0), системный таймер и DWT --- */
+/* --- system_sram224.c: 240 МГц, проверка 224 КБ SRAM без изменения USD, системный таймер и DWT --- */
 void     omnia_system_boot_init(void);
 uint16_t omnia_get_sram_size_kb(void);
 uint32_t omnia_millis(void);
