@@ -5,6 +5,7 @@
  */
 
 #include "omnia_at32.h"
+#include "omnia_control_policy.h"
 #include <math.h>
 #include <string.h>
 
@@ -253,12 +254,12 @@ void omnia_i2s_audio_init(omnia_dsp_ctx_t *dsp_ctx)
 }
 
 /**
- * @brief  Строгая бесщёлчковая перестройка частоты Fs (Policy 1):
+ * @brief  Экспериментальная перестройка частоты Fs (бесщёлчковость не подтверждена):
  *         XSMT Mute -> стоп DMA -> пересчёт DSP под новый Fs -> рестарт I2S2 -> пауза стабилизации -> XSMT Unmute.
  */
 bool omnia_i2s_reconfigure_fs(uint32_t new_fs_hz, bool enable_mclk)
 {
-    if (new_fs_hz != 44100U && new_fs_hz != 48000U && new_fs_hz != 96000U) {
+    if (!omnia_policy_sample_rate(new_fs_hz)) {
         return false;
     }
     if (new_fs_hz == g_current_fs && enable_mclk == g_mclk_enabled) {

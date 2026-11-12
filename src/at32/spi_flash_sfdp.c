@@ -1,15 +1,18 @@
 /**
  * @file    spi_flash_sfdp.c
- * @brief   Универсальный драйвер ЛЮБОЙ 3.3V SPI NOR Flash 25-й серии на площадке BlackPill (PA4..PA7).
- *          Автоматически распознаёт микросхемы любых брендов (Winbond, GigaDevice, Boya, Puya, Zbit,
- *          Macronix, XMC, ISSI и др.) через стандарт JESD216 SFDP (0x5A) + резерв по коду JEDEC (0x9F).
- *          Если флешка не припаяна — прозрачно сохраняет пресеты DSP в верхних секторах внутренней Flash AT32!
+ * @brief   Карантин старой реализации SPI NOR и пресетов; активны только безопасные заглушки.
+ *          Не использовать для хранения, доработать после проверки платы и защиты Flash.
  */
 
 #include "omnia_at32.h"
 #include "omnia_crc16.h"
 #include <string.h>
 
+/* Эта реализация сохранена для переработки, но намеренно исключена из сборки:
+ * конфликтующие распиновки U3, недоказанная геометрия/4-byte режим NOR,
+ * отсутствие зарезервированного линкером раздела внутренней Flash и атомарности.
+ * Самопроизвольное чтение/стирание/инициализация выводов здесь недопустимы. */
+#if 0
 /* Команды стандарта SPI NOR JESD216 */
 #define NOR_CMD_WRITE_ENABLE        0x06U
 #define NOR_CMD_READ_SR1            0x05U
@@ -408,4 +411,27 @@ bool omnia_preset_load(uint8_t slot, omnia_dsp_ctx_t *dsp, char *out_name24)
         out_name24[23] = '\0';
     }
     return true;
+}
+
+#endif /* quarantined legacy implementation */
+
+/* Fail closed: no GPIO/SPI/flash access until board and storage are validated. */
+static const omnia_spi_flash_info_t g_unavailable_flash = {0};
+void omnia_ext_flash_init(omnia_spi_flash_info_t *out_info)
+{
+    if (out_info) *out_info = g_unavailable_flash;
+}
+const omnia_spi_flash_info_t *omnia_ext_flash_get_info(void)
+{
+    return &g_unavailable_flash;
+}
+bool omnia_preset_save(uint8_t slot, const char *name, const omnia_dsp_ctx_t *dsp)
+{
+    (void)slot; (void)name; (void)dsp;
+    return false;
+}
+bool omnia_preset_load(uint8_t slot, omnia_dsp_ctx_t *dsp, char *out_name24)
+{
+    (void)slot; (void)dsp; (void)out_name24;
+    return false;
 }

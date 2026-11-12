@@ -65,7 +65,7 @@ int main(void)
         }
     }
 
-    /* 3. Автоопределение любой внешней SPI NOR Flash (JEDEC + SFDP) на PA4..PA7 */
+    /* 3. Хранилище AT32 отключено; безопасная заглушка не затрагивает GPIO и Flash. */
     omnia_spi_flash_info_t flash_info;
     omnia_ext_flash_init(&flash_info);
 

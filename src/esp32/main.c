@@ -99,7 +99,7 @@ void app_main(void)
                      (unsigned long)at32_info.ext_flash_jedec,
                      (unsigned long)(at32_info.ext_flash_bytes / 1024UL));
         } else {
-            ESP_LOGI(TAG, "Внешняя SPI Flash на AT32 не распаяна — пресеты хранятся во внутренней Flash AT32");
+            ESP_LOGI(TAG, "SPI Flash и хранение пресетов AT32 отключены до проверки схемы и защиты Flash");
         }
 
         /* Синхронизируем сохранённую настройку Триггера звуковой карты USB-DAC из NVS */

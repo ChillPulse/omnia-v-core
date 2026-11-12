@@ -5,6 +5,7 @@
  */
 
 #include "omnia_at32.h"
+#include "omnia_control_policy.h"
 #include <string.h>
 
 #define UART_RX_DMA_RING_SIZE   1024U
@@ -147,8 +148,10 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
 
     case OMNIA_CMD_SET_VOLUME:
         if (len == sizeof(omnia_cmd_volume_t)) {
-            const omnia_cmd_volume_t *v = (const omnia_cmd_volume_t *)pay;
-            omnia_dsp_set_volume(g_dsp, v->volume_db, v->replaygain_db, v->balance, v->ramp_ms);
+            omnia_cmd_volume_t v;
+            memcpy(&v, pay, sizeof(v));
+            if (!omnia_policy_volume(&v)) res = OMNIA_STATUS_ERR_INVALID_ARG;
+            else omnia_dsp_set_volume(g_dsp, v.volume_db, v.replaygain_db, v.balance, v.ramp_ms);
         } else {
             res = OMNIA_STATUS_ERR_INVALID_ARG;
         }
@@ -160,8 +163,10 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
             if (!g_dsp->muted) {
                 res = OMNIA_STATUS_ERR_NOT_MUTED;
             } else {
-                const omnia_cmd_set_fs_t *f = (const omnia_cmd_set_fs_t *)pay;
-                if (!omnia_i2s_reconfigure_fs(f->sample_rate_hz, omnia_i2s_is_mclk_enabled())) {
+                omnia_cmd_set_fs_t f;
+                memcpy(&f, pay, sizeof(f));
+                if (!omnia_policy_word_bits(f.word_bits) ||
+                    !omnia_i2s_reconfigure_fs(f.sample_rate_hz, omnia_i2s_is_mclk_enabled())) {
                     res = OMNIA_STATUS_ERR_INVALID_ARG;
                 }
             }
@@ -172,13 +177,12 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
 
     case OMNIA_CMD_SET_I2S_SOURCE:
         if (len == sizeof(omnia_cmd_source_t)) {
-            const omnia_cmd_source_t *s = (const omnia_cmd_source_t *)pay;
+            omnia_cmd_source_t source;
+            memcpy(&source, pay, sizeof(source));
+            const omnia_cmd_source_t *s = &source;
             const omnia_i2s_source_t src = (omnia_i2s_source_t)s->source;
-            if (src > OMNIA_SRC_USB_DAC_UAC1 || (!OMNIA_ENABLE_BT && src == OMNIA_SRC_BT_I2S3_ASRC) ||
-                (!OMNIA_ENABLE_USB_DAC && src == OMNIA_SRC_USB_DAC_UAC1)) {
-                res = OMNIA_STATUS_ERR_UNSUPPORTED;
-                break;
-            }
+            res = omnia_policy_source(s, g_dsp->muted, OMNIA_ENABLE_BT != 0, OMNIA_ENABLE_USB_DAC != 0);
+            if (res != OMNIA_STATUS_OK) break;
             omnia_usb_trigger_notify_manual_source(src);
             if (src == OMNIA_SRC_USB_DAC_UAC1) {
                 const uint32_t usb_fs = omnia_usb_dac_get_host_rate();
@@ -257,18 +261,8 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         break;
 
     case OMNIA_CMD_PRESET_OP:
-        if (len == sizeof(omnia_preset_op_t)) {
-            const omnia_preset_op_t *pr = (const omnia_preset_op_t *)pay;
-            bool ok = false;
-            if (pr->op == 0U) {
-                ok = omnia_preset_load(pr->slot_index, g_dsp, NULL);
-            } else if (pr->op == 1U) {
-                ok = omnia_preset_save(pr->slot_index, pr->name, g_dsp);
-            }
-            if (!ok) {
-                res = OMNIA_STATUS_ERR_FLASH_IO;
-            }
-        } else res = OMNIA_STATUS_ERR_INVALID_ARG;
+        /* Хранилище намеренно отключено: никакого стирания до защиты разделов. */
+        res = len == sizeof(omnia_preset_op_t) ? OMNIA_STATUS_ERR_UNSUPPORTED : OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_USB_TRIGGER_CFG:
@@ -323,10 +317,16 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         break;
 
     case OMNIA_CMD_MCLK_CFG:
-        if (len == sizeof(omnia_mclk_cmd_t)) {
+        if (len != sizeof(omnia_mclk_cmd_t)) {
+            res = OMNIA_STATUS_ERR_INVALID_ARG;
+        } else if (!g_dsp->muted) {
+            res = OMNIA_STATUS_ERR_NOT_MUTED;
+        } else {
             const omnia_mclk_cmd_t *mc = (const omnia_mclk_cmd_t *)pay;
-            (void)omnia_i2s_reconfigure_fs(omnia_i2s_get_current_fs(), mc->mclk_enable != 0U);
-        } else res = OMNIA_STATUS_ERR_INVALID_ARG;
+            if (mc->mclk_enable > 1U ||
+                !omnia_i2s_reconfigure_fs(omnia_i2s_get_current_fs(), mc->mclk_enable != 0U))
+                res = OMNIA_STATUS_ERR_INVALID_ARG;
+        }
         break;
 
     case OMNIA_CMD_GET_SYS_INFO:

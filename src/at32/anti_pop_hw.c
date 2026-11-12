@@ -1,10 +1,10 @@
 /**
  * @file    anti_pop_hw.c
- * @brief   Студийный бесщёлчковый секвенсор питания УМЗЧ и линейного выхода ЦАПа:
+ * @brief   Экспериментальный секвенсор питания УМЗЧ и линейного выхода ЦАПа (не проверен на железе):
  *            PB0  = DAC_XSMT       (LOW = Mute PCM5102A, HIGH = Работа)
  *            PB2  = AMP_PWR_EN     (Отдельное реле включения питания БП УМЗЧ K2 / SSR;
  *                                   полярность и задержки настраиваются в Сервисном меню)
- *            PB4  = AMP_MUTE_OUT   (Отдельный 5V-толерантный пин для входов MUTE / CMUTE / SDZ / RESET
+ *            PB4  = AMP_MUTE_OUT   (Отдельный пин для входов MUTE / CMUTE / SDZ / RESET
  *                                   плат TPA3116D2 и TPA3221 — 3 режима в Сервисном меню:
  *                                   0: Active-LOW Push-Pull, 1: Active-LOW Open-Drain, 2: Active-HIGH Push-Pull)
  *            PB8  = AUDIO_RELAY_EN (Сигнальное реле Anti-Pop K1 линейного выхода ЦАПа)
@@ -24,7 +24,7 @@ static bool     g_amp_pwr_is_on     = false;
 static bool     g_amp_mute_asserted = true;
 static uint32_t g_bt_rst_end_ms     = 0U;
 
-/* Настройки Сервисного меню по умолчанию (безопасны для TPA3221 RESET/SDZ и стандартного NPN-ключа реле K2) */
+/* Временные значения, не подтверждённые для конкретной платы; Service Menu пока нет */
 static omnia_amp_ctrl_cfg_t g_amp_cfg = {
     .mute_pin_mode        = (uint8_t)OMNIA_AMP_MUTE_ACTIVE_LOW_PP,
     .amp_pwr_active_high  = 1U,     /* HIGH на PB2 открывает NPN-ключ VT2 / SSR реле питания УМЗЧ */
@@ -99,7 +99,7 @@ void omnia_hw_gpio_init(void)
      * это сразу освобождает PB4 (AMP_MUTE_OUT), а также PA15/PB3 для I2S3 входа Bluetooth. */
     gpio_pin_remap_config(SWJTAG_GMUX_010, TRUE);
 
-    /* 1. До переключения выводов на выход выставляем гарантированно тихие уровни:
+    /* 1. До переключения выводов на выход выставляем предполагаемые стендовые уровни (без гарантии для конкретной схемы):
      *    PB0 (DAC_XSMT)=LOW, PB8 (AUDIO_RELAY)=LOW, PB2 (AMP_PWR)=ВЫКЛ, PB4 (AMP_MUTE)=MUTE */
     gpio_bits_reset(GPIOB, OMNIA_AT32_DAC_XSMT_PIN | OMNIA_AT32_RELAY_PIN);
     apply_pb2_amp_pwr_level(false);
@@ -117,10 +117,12 @@ void omnia_hw_gpio_init(void)
     g_amp_mute_asserted = true;
     apply_pb4_hardware_state(true);
 
-    /* 2. PA2 (BT_CTRL_EN) — по умолчанию HIGH (работа модуля Bluetooth разрешена) */
+#if OMNIA_ENABLE_BT
+    /* PA2 не трогаем, пока Bluetooth отложен и модуль не идентифицирован. */
     gpio_bits_set(OMNIA_AT32_BT_CTRL_PORT, OMNIA_AT32_BT_CTRL_PIN);
     gpio_cfg.gpio_pins = OMNIA_AT32_BT_CTRL_PIN;
     gpio_init(OMNIA_AT32_BT_CTRL_PORT, &gpio_cfg);
+#endif
 
     /* 3. PB9 (USB_VBUS_DET) — вход с внутренней подтяжкой к земле */
     gpio_cfg.gpio_mode = GPIO_MODE_INPUT;
@@ -260,7 +262,7 @@ void omnia_hw_led_toggle(void)
 }
 
 /**
- * @brief  Эталонная бесщёлчковая последовательность старта ЦАПа и УМЗЧ (TPA3116 / TPA3221):
+ * @brief  Экспериментальная последовательность старта ЦАПа и УМЗЧ (TPA3116 / TPA3221):
  *         1. Удерживаем Mute на ЦАПе (PB0=0) и на УМЗЧ (PB4=Mute), сигнальное реле PB8 разомкнуто.
  *         2. Включаем силовое реле питания УМЗЧ (PB2) -> ждём прогрева и заряда банок БП УМЗЧ (warmup_delay_ms).
  *         3. Снимаем Mute с ЦАПа PCM5102A (PB0=1) на цифровой тишине -> пауза 40 мс.
