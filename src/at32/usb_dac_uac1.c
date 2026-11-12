@@ -58,7 +58,7 @@ static uint8_t           s_ep0_out_expect   = 0U;       /* 0=нет, 1=Freq(3B),
 
 /* --- Состояние включаемой триггер-функции USB-DAC --- */
 static omnia_usb_trigger_cfg_t s_trig_cfg = {
-    .enable_auto_switch   = 1U,     /* По умолчанию ВКЛ (можно отключить из Web-UI / меню TFT) */
+    .enable_auto_switch   = 0U,     /* По умолчанию ВЫКЛ до проверки на стенде */
     .wake_from_standby    = 1U,     /* Пробуждать стример и замыкать реле при старте ТВ-бокса  */
     .auto_return_prev_src = 1U,     /* Возвращать прежний источник при выключении ТВ-бокса     */
     .prefer_vbus_pin      = 1U,     /* Детектор PB9 (+ резерв по активности пакетов SOF)       */

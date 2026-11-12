@@ -14,6 +14,13 @@
 #include "omnia_dsp.h"
 #include "omnia_asrc.h"
 
+#ifndef OMNIA_ENABLE_BT
+#define OMNIA_ENABLE_BT 0 /* Следующий этап после идентификации модуля */
+#endif
+#ifndef OMNIA_ENABLE_USB_DAC
+#define OMNIA_ENABLE_USB_DAC 0 /* Включать только после отдельной проверки клоков и USB */
+#endif
+
 /* --- system_sram224.c: 240 МГц, раскрытие 224 КБ SRAM (EOPB0), системный таймер и DWT --- */
 void     omnia_system_boot_init(void);
 uint16_t omnia_get_sram_size_kb(void);
@@ -31,6 +38,7 @@ void     omnia_hw_set_amp_mute(bool mute_active);
 void     omnia_hw_set_relay(bool closed);
 bool     omnia_hw_amp_cfg_ready(void);
 void     omnia_hw_latch_fault(void);
+bool     omnia_hw_has_fault(void);
 void     omnia_hw_apply_amp_ctrl_cfg(const omnia_amp_ctrl_cfg_t *cfg);
 void     omnia_hw_get_amp_ctrl_cfg(omnia_amp_ctrl_cfg_t *out_cfg);
 bool     omnia_hw_vbus_pin_raw(void);

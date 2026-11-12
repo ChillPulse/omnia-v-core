@@ -132,6 +132,10 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         break;
 
     case OMNIA_CMD_UNMUTE:
+        if (g_dsp->dc_fault_tripped || omnia_hw_has_fault()) {
+            res = OMNIA_STATUS_ERR_INVALID_ARG;
+            break;
+        }
         omnia_hw_set_dac_xsmt(true);
         if (len >= sizeof(omnia_cmd_mute_t)) {
             const omnia_cmd_mute_t *m = (const omnia_cmd_mute_t *)pay;
@@ -170,6 +174,11 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         if (len == sizeof(omnia_cmd_source_t)) {
             const omnia_cmd_source_t *s = (const omnia_cmd_source_t *)pay;
             const omnia_i2s_source_t src = (omnia_i2s_source_t)s->source;
+            if (src > OMNIA_SRC_USB_DAC_UAC1 || (!OMNIA_ENABLE_BT && src == OMNIA_SRC_BT_I2S3_ASRC) ||
+                (!OMNIA_ENABLE_USB_DAC && src == OMNIA_SRC_USB_DAC_UAC1)) {
+                res = OMNIA_STATUS_ERR_UNSUPPORTED;
+                break;
+            }
             omnia_usb_trigger_notify_manual_source(src);
             if (src == OMNIA_SRC_USB_DAC_UAC1) {
                 const uint32_t usb_fs = omnia_usb_dac_get_host_rate();
@@ -273,7 +282,9 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         break;
 
     case OMNIA_CMD_BT_CTRL:
-        if (len == sizeof(omnia_bt_ctrl_cmd_t)) {
+        if (!OMNIA_ENABLE_BT) {
+            res = OMNIA_STATUS_ERR_UNSUPPORTED;
+        } else if (len == sizeof(omnia_bt_ctrl_cmd_t)) {
             omnia_bt_ctrl_cmd_t bcmd;
             memcpy(&bcmd, pay, sizeof(bcmd));
             omnia_bt_receiver_exec_cmd(&bcmd);
@@ -391,7 +402,8 @@ void omnia_uart_link_init(omnia_dsp_ctx_t *dsp_ctx)
 void omnia_uart_link_poll(uint32_t now_ms)
 {
     /* Вычитываем все новые байты из кругового DMA-кольца USART1 */
-    const uint16_t wr_idx = (uint16_t)(UART_RX_DMA_RING_SIZE - dma_data_number_get(DMA1_CHANNEL5));
+    /* При нулевом счётчике DMA позиция уже равна началу кольца, а не 1024. */
+    const uint16_t wr_idx = (uint16_t)((UART_RX_DMA_RING_SIZE - dma_data_number_get(DMA1_CHANNEL5)) % UART_RX_DMA_RING_SIZE);
     while (g_uart_rx_rd_idx != wr_idx) {
         const uint8_t b = g_uart_rx_ring[g_uart_rx_rd_idx];
         g_uart_rx_rd_idx = (uint16_t)((g_uart_rx_rd_idx + 1U) % UART_RX_DMA_RING_SIZE);

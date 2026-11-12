@@ -42,7 +42,7 @@ static omnia_vbus_event_cb_t   g_vbus_cb        = NULL;
 
 /* Сохраняемая в NVS настройка включаемой Триггер-функции звуковой карты USB-DAC */
 static omnia_usb_trigger_cfg_t g_usb_trig_cfg = {
-    .enable_auto_switch   = 1U,     /* По умолчанию ВКЛ (переключается в Web-UI и на экране TFT) */
+    .enable_auto_switch   = 0U,     /* По умолчанию ВЫКЛ до проверки на стенде */
     .wake_from_standby    = 1U,     /* Пробуждать стример при подаче +5V от ТВ-приставки / ПК    */
     .auto_return_prev_src = 1U,     /* Автовозврат на предыдущий вход при выключении ТВ-бокса    */
     .prefer_vbus_pin      = 1U,     /* Детектор пина PB9 VBUS_DET (+ резерв по пакетам USB SOF)  */

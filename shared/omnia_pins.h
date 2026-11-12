@@ -122,7 +122,7 @@
  *     PB8  = AUDIO_RELAY_EN (10 кОм к GND; сигнальное реле Anti-Pop K1 выхода ЦАПа через VT1 NPN)
  *     PB2  = AMP_PWR_EN     (заводской 10 кОм к GND на плате BlackPill + каскад VT2 NPN / SSR:
  *                            отдельный пин включения силового реле питания УМЗЧ K2!)
- *     PB4  = AMP_MUTE_OUT   (5V-tolerant FT, 10 кОм к GND: отдельный настраиваемый в Сервисном меню
+ *     PB4  = AMP_MUTE_OUT   (тип и внешняя обвязка зависят от платы усилителя: отдельный настраиваемый
  *                            пин подачи LOW / HIGH / Open-Drain на вход MUTE / CMUTE / SDZ плат
  *                            TPA3116D2 и TPA3221!)
  *     PC13 = STATUS_LED     (синий светодиод на плате BlackPill, активный LOW)

@@ -2,7 +2,7 @@ name: OMNIA v2.0 Dual-MCU Build & DSP Tests
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "wip/v2.2-direct-safety" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -20,6 +20,7 @@ jobs:
             tests/test_dsp_and_proto.c src/at32/dsp_engine.c src/at32/asrc_farrow.c \
             -lm -o tests/test_runner
           ./tests/test_runner
+          python -m unittest discover -s tests -p test_bench.py -v
 
   build-at32-dsp:
     name: Build AT32F403ACGU7 Studio DSP (PlatformIO)
@@ -82,3 +83,10 @@ jobs:
         run: |
           pip install --upgrade platformio
           pio run -e esp32s3_omnia
+      - uses: actions/upload-artifact@v4
+        with:
+          name: omnia-esp32s3-platformio-firmware
+          path: |
+            .pio/build/esp32s3_omnia/firmware.bin
+            .pio/build/esp32s3_omnia/bootloader.bin
+            .pio/build/esp32s3_omnia/partitions.bin

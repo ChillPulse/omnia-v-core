@@ -50,11 +50,20 @@ void UsageFault_Handler(void)
 
 int main(void)
 {
-    /* 1. Подъём FPU, автораскрытие 224 КБ SRAM (EOPB0 = 0xFE), PLL 240 МГц, DWT и SysTick */
+    /* 1. FPU, проверка SRAM без изменения USD, PLL, DWT и SysTick */
     omnia_system_boot_init();
 
     /* 2. Безопасная инициализация всех ключей Mute/Relay/XSMT/USB до запуска клоков */
     omnia_hw_gpio_init();
+
+    /* Не обращаться к .sram_ext до подтверждения конфигурации: медленно мигаем
+     * и сохраняем выходы в безопасных состояниях. USD программирует только оператор. */
+    if (omnia_get_sram_size_kb() != 224U) {
+        while (1) {
+            omnia_hw_led_toggle();
+            omnia_delay_ms(250U);
+        }
+    }
 
     /* 3. Автоопределение любой внешней SPI NOR Flash (JEDEC + SFDP) на PA4..PA7 */
     omnia_spi_flash_info_t flash_info;
@@ -67,10 +76,14 @@ int main(void)
     omnia_i2s_audio_init(&g_dsp_ctx);
 
     /* 6. Запуск прямого цифрового 24-bit входа Bluetooth I2S3 Slave + ASRC + UART4 (PA15/PB3/PB5 + PA0/PA1) */
+#if OMNIA_ENABLE_BT
     omnia_bt_receiver_init(48000U);
+#endif
 
     /* 7. Запуск нативной звуковой карты USB-DAC 24-bit UAC1 Async (PA11/PA12 + HICK/ACC + Триггер PB9) */
+#if OMNIA_ENABLE_USB_DAC
     omnia_usb_dac_init();
+#endif
 
     /* До настройки конкретной платы усилителя не подаём питание на K2. */
     omnia_hw_enter_standby(true);
@@ -87,12 +100,16 @@ int main(void)
 
         /* Неблокирующий опрос сброса BT, Триггера +5V USB-DAC, метаданных Bluetooth и протокола ESP32 */
         omnia_hw_poll(now);
+#if OMNIA_ENABLE_USB_DAC
         omnia_usb_dac_poll(now);
+#endif
+#if OMNIA_ENABLE_BT
         omnia_bt_receiver_poll(now);
+#endif
         omnia_uart_link_poll(now);
 
         /* Это контроль цифрового DC, а не защита от постоянки на клеммах динамиков. */
-        if (g_dsp_ctx.dc_fault_tripped && !omnia_hw_is_standby()) {
+        if (g_dsp_ctx.dc_fault_tripped && !omnia_hw_has_fault()) {
             omnia_hw_latch_fault();
         }
 

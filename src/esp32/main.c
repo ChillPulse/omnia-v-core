@@ -108,8 +108,7 @@ void app_main(void)
         /* Загружаем стартовый студийный профиль AETHER + ISO 226 и комфортную громкость -24 дБ */
         (void)omnia_at32_load_default_studio_profile();
         (void)omnia_at32_set_volume(-24.0f, 0.0f, 0.0f, 40U);
-        const omnia_cmd_mute_t unmute = { .ramp_ms = 35U, .hard_xsmt = 0U };
-        (void)omnia_at32_send_cmd_sync(OMNIA_CMD_UNMUTE, &unmute, sizeof(unmute), 60U);
+        /* До явной стендовой команды DAC_XSMT остаётся в mute. */
     } else {
         ESP_LOGW(TAG, "Ожидание подключения платы AT32F403 по UART1 (GPIO7/GPIO8)...");
     }

@@ -20,20 +20,17 @@ void SysTick_Handler(void)
 
 /**
  * @brief  Проверяет заводской байт конфигурации EOPB0 (0x1FFFF810).
- *         Если чип с завода в режиме 96 КБ (0xFF), безопасно прошивает 0xFE (224 КБ SRAM)
- *         и выполняет мгновенный системный ресет для вступления настройки в силу.
+ *         В режиме без 224 КБ сообщает о недоступной памяти; USD не изменяется.
  */
 static void ensure_224kb_sram_enabled(void)
 {
     const uint8_t cur_eopb0 = (uint8_t)(USD->eopb0 & 0xFFU);
 
+    /* Никогда не стираем USD/option bytes автоматически: там могут храниться
+     * защита и другие заводские настройки. Без 224 КБ запуск DSP запрещён. */
     if (cur_eopb0 != 0xFEU) {
-        flash_unlock();
-        if (flash_user_system_data_erase() == FLASH_OPERATE_DONE) {
-            (void)flash_user_system_data_program((uint32_t)&USD->eopb0, 0xFEU);
-        }
-        flash_lock();
-        NVIC_SystemReset();
+        g_sram_kb = 96U;
+        return;
     }
 
     /* Пробная запись/чтение в верхний адрес 224 КБ SRAM (0x20037FFC) для самопроверки */
@@ -55,23 +52,18 @@ static void ensure_224kb_sram_enabled(void)
 }
 
 /**
- * @brief  Настройка тактирования ядра 240 МГц от внешнего кварца 8 МГц (WeAct BlackPill)
- *         с автоматическим резервом на внутренний генератор HICK при неисправности кварца.
+ * @brief  Стендовое тактирование от HICK (номинально 240 МГц, точность не подтверждена).
  */
 static void clock_240mhz_init(void)
 {
     crm_reset();
 
-    crm_clock_source_enable(CRM_CLOCK_SOURCE_HEXT, TRUE);
-    if (crm_hext_stable_wait() == SUCCESS) {
-        /* 8 МГц / 2 * 60 = 240 МГц */
-        crm_pll_config(CRM_PLL_SOURCE_HEXT_DIV, CRM_PLL_MULT_60, CRM_PLL_OUTPUT_RANGE_GT72MHZ);
-    } else {
-        /* Аварийный запуск от внутреннего HICK: 8 МГц / 2 * 60 = 240 МГц */
-        crm_clock_source_enable(CRM_CLOCK_SOURCE_HICK, TRUE);
-        while (crm_flag_get(CRM_HICK_STABLE_FLAG) != SET) {}
-        crm_pll_config(CRM_PLL_SOURCE_HICK, CRM_PLL_MULT_60, CRM_PLL_OUTPUT_RANGE_GT72MHZ);
-    }
+    /* На BlackPill встречаются кварцы 8 и 25 МГц. До проверки маркировки
+     * нельзя предполагать HEXT=8: это может привести к опасному разгону.
+     * Стендовый вариант использует HICK 8 МГц / 2 * 60; частота неточная. */
+    crm_clock_source_enable(CRM_CLOCK_SOURCE_HICK, TRUE);
+    while (crm_flag_get(CRM_HICK_STABLE_FLAG) != SET) {}
+    crm_pll_config(CRM_PLL_SOURCE_HICK, CRM_PLL_MULT_60, CRM_PLL_OUTPUT_RANGE_GT72MHZ);
 
     crm_clock_source_enable(CRM_CLOCK_SOURCE_PLL, TRUE);
     while (crm_flag_get(CRM_PLL_STABLE_FLAG) != SET) {}

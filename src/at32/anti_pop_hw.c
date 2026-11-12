@@ -155,6 +155,11 @@ bool omnia_hw_amp_cfg_ready(void)
     return g_amp_cfg_ready && !g_amp_fault_latched;
 }
 
+bool omnia_hw_has_fault(void)
+{
+    return g_amp_fault_latched;
+}
+
 void omnia_hw_latch_fault(void)
 {
     g_amp_fault_latched = true;
