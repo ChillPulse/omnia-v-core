@@ -76,6 +76,10 @@ void app_main(void)
     ESP_ERROR_CHECK(omnia_rgb_ring_init());
     omnia_rgb_ring_set_mode(OMNIA_LED_MODE_OBSIDIAN_CYAN, 0.28f);
 
+    /* VS1838B: диагностика NEC и сохранение кода, действия не назначены. */
+    ret = omnia_ir_receiver_init();
+    if (ret != ESP_OK) ESP_LOGW(TAG, "ИК-диагностика недоступна: %s", esp_err_to_name(ret));
+
     /* 4. Подъём ведомого I2S0 Slave TX (32-bit Phillips) на Core 1 */
     ESP_ERROR_CHECK(omnia_audio_i2s_init(&g_static_pools, 48000U));
 

@@ -56,6 +56,10 @@ esp_err_t omnia_at32_send_bt_ctrl(omnia_bt_action_t action, uint8_t param);
 void      omnia_at32_get_latest_status(omnia_at32_status_t *out_status);
 bool      omnia_at32_get_recent_status(omnia_at32_status_t *out_status, uint32_t max_age_ms);
 esp_err_t omnia_bench_console_init(void);
+esp_err_t omnia_ir_receiver_init(void);
+esp_err_t omnia_ir_learn_nec(const char *name);
+esp_err_t omnia_ir_get_nec(const char *name, uint32_t *out_code);
+esp_err_t omnia_ir_delete_nec(const char *name);
 void      omnia_at32_get_latest_meters(omnia_signal_meters_t *out_meters);
 void      omnia_at32_get_latest_bt_meta(omnia_bt_meta_evt_t *out_meta);
 

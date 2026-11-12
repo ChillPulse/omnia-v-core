@@ -24,6 +24,9 @@ jobs:
           gcc -O2 -Wall -Wextra -Werror -Isrc/esp32/include \
             tests/test_bench_command.c src/esp32/bench_command.c -o /tmp/omnia-bench-test
           /tmp/omnia-bench-test
+          gcc -O2 -Wall -Wextra -Werror -Isrc/esp32/include \
+            tests/test_ir_nec.c src/esp32/ir_nec.c -o /tmp/omnia-ir-test
+          /tmp/omnia-ir-test
 
   build-at32-dsp:
     name: Build AT32F403ACGU7 Studio DSP (PlatformIO)
