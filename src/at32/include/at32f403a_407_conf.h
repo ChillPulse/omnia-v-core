@@ -31,6 +31,8 @@ extern "C" {
 #define WDT_MODULE_ENABLED
 #define EXINT_MODULE_ENABLED
 #define MISC_MODULE_ENABLED
+#define ACC_MODULE_ENABLED
+#define USB_MODULE_ENABLED
 
 #include "at32f403a_407_crm.h"
 #include "at32f403a_407_tmr.h"
@@ -45,6 +47,8 @@ extern "C" {
 #include "at32f403a_407_wdt.h"
 #include "at32f403a_407_exint.h"
 #include "at32f403a_407_misc.h"
+#include "at32f403a_407_acc.h"
+#include "at32f403a_407_usb.h"
 
 #ifdef __cplusplus
 }
