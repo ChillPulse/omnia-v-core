@@ -50,12 +50,48 @@ typedef struct {
 #pragma pack(pop)
 
 static omnia_spi_flash_info_t g_flash_info;
+static uint8_t                g_active_bus = 0U; /* 0 = нет, 1 = SPI1 (PA4..7), 2 = Belly U3 (PA8/PB1/PB10/PB11) */
 
-static inline void cs_low(void)  { gpio_bits_reset(GPIOA, GPIO_PINS_4); }
-static inline void cs_high(void) { gpio_bits_set(GPIOA, GPIO_PINS_4); }
+static inline void cs_low(void)
+{
+    if (g_active_bus == 2U) {
+        gpio_bits_reset(GPIOA, GPIO_PINS_8);
+    } else {
+        gpio_bits_reset(GPIOA, GPIO_PINS_4);
+    }
+}
+
+static inline void cs_high(void)
+{
+    if (g_active_bus == 2U) {
+        gpio_bits_set(GPIOA, GPIO_PINS_8);
+    } else {
+        gpio_bits_set(GPIOA, GPIO_PINS_4);
+    }
+}
 
 static uint8_t spi1_xfer(uint8_t tx)
 {
+    if (g_active_bus == 2U) {
+        /* Штатная площадка U3 SOIC-8 на брюшке WeAct BlackPill V1.0:
+         * PA8=CS#, PB1=SCK, PB10=DI(IO0), PB11=DO(IO1), PB7=WP#(1), PB6=HOLD#(1) */
+        uint8_t rx = 0U;
+        for (uint8_t bit = 0U; bit < 8U; bit++) {
+            if ((tx & 0x80U) != 0U) {
+                GPIOB->scr = GPIO_PINS_10;
+            } else {
+                GPIOB->clr = GPIO_PINS_10;
+            }
+            tx <<= 1;
+            __NOP(); __NOP();
+            GPIOB->scr = GPIO_PINS_1;
+            __NOP(); __NOP();
+            rx = (uint8_t)((rx << 1) | ((GPIOB->idt & GPIO_PINS_11) ? 1U : 0U));
+            GPIOB->clr = GPIO_PINS_1;
+        }
+        return rx;
+    }
+
     while (spi_i2s_flag_get(SPI1, SPI_I2S_TDBE_FLAG) == RESET) {}
     spi_i2s_data_transmit(SPI1, tx);
     while (spi_i2s_flag_get(SPI1, SPI_I2S_RDBF_FLAG) == RESET) {}
@@ -131,44 +167,9 @@ static uint32_t detect_capacity_via_sfdp(void)
     return 0U;
 }
 
-void omnia_ext_flash_init(omnia_spi_flash_info_t *out_info)
+static bool probe_bus_id(uint8_t bus_id)
 {
-    gpio_init_type gpio_cfg;
-    spi_init_type  spi_cfg;
-
-    memset(&g_flash_info, 0, sizeof(g_flash_info));
-    crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE);
-    crm_periph_clock_enable(CRM_SPI1_PERIPH_CLOCK, TRUE);
-
-    /* PA4 = CS (Output HIGH), PA5 = SCK, PA7 = MOSI, PA6 = MISO (Pull-up: если чипа нет, прочитается 0xFF) */
-    cs_high();
-    gpio_default_para_init(&gpio_cfg);
-    gpio_cfg.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
-    gpio_cfg.gpio_out_type       = GPIO_OUTPUT_PUSH_PULL;
-    gpio_cfg.gpio_mode           = GPIO_MODE_OUTPUT;
-    gpio_cfg.gpio_pins           = GPIO_PINS_4;
-    gpio_init(GPIOA, &gpio_cfg);
-
-    gpio_cfg.gpio_mode = GPIO_MODE_MUX;
-    gpio_cfg.gpio_pins = GPIO_PINS_5 | GPIO_PINS_7;
-    gpio_init(GPIOA, &gpio_cfg);
-
-    gpio_cfg.gpio_mode = GPIO_MODE_INPUT;
-    gpio_cfg.gpio_pull = GPIO_PULL_UP;
-    gpio_cfg.gpio_pins = GPIO_PINS_6;
-    gpio_init(GPIOA, &gpio_cfg);
-
-    spi_default_para_init(&spi_cfg);
-    spi_cfg.transmission_mode = SPI_TRANSMIT_FULL_DUPLEX;
-    spi_cfg.master_slave_mode = SPI_MODE_MASTER;
-    spi_cfg.mclk_freq_division = SPI_MCLK_DIV_4; /* 120 МГц / 4 = 30 МГц (поддерживают абсолютно все 25Qxx) */
-    spi_cfg.first_bit_transmission = SPI_FIRST_BIT_MSB;
-    spi_cfg.frame_bit_num     = SPI_FRAME_8BIT;
-    spi_cfg.clock_polarity    = SPI_CLOCK_POLARITY_LOW;
-    spi_cfg.clock_phase       = SPI_CLOCK_PHASE_1EDGE;
-    spi_cfg.cs_mode_selection = SPI_CS_SOFTWARE_MODE;
-    spi_init(SPI1, &spi_cfg);
-    spi_enable(SPI1, TRUE);
+    g_active_bus = bus_id;
 
     /* Пробуждение и мягкий сброс микросхемы (на случай глубокого сна после ресета МК) */
     cs_low(); (void)spi1_xfer(NOR_CMD_RELEASE_POWERDOWN); cs_high();
@@ -188,17 +189,81 @@ void omnia_ext_flash_init(omnia_spi_flash_info_t *out_info)
 
     if (mfg != 0x00U && mfg != 0xFFU && cap >= 0x11U && cap <= 0x22U) {
         g_flash_info.present     = true;
+        g_flash_info.bus_type    = bus_id;
         g_flash_info.jedec_id    = ((uint32_t)mfg << 16) | ((uint32_t)type << 8) | cap;
         g_flash_info.sector_size = 4096U;
         g_flash_info.page_size   = 256U;
 
         uint32_t bytes = detect_capacity_via_sfdp();
         if (bytes == 0U) {
-            /* Универсальный стандарт кодирования объёма в 3-м байте JEDEC: 2^cap байт (0x16 = 4MB, 0x17 = 8MB, 0x18 = 16MB) */
             bytes = 1UL << cap;
         }
         g_flash_info.capacity_bytes = bytes;
         g_flash_info.addr_4byte     = (bytes > (16UL * 1024UL * 1024UL));
+        return true;
+    }
+    return false;
+}
+
+void omnia_ext_flash_init(omnia_spi_flash_info_t *out_info)
+{
+    gpio_init_type gpio_cfg;
+    spi_init_type  spi_cfg;
+
+    memset(&g_flash_info, 0, sizeof(g_flash_info));
+    g_active_bus = 0U;
+    crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE);
+    crm_periph_clock_enable(CRM_GPIOB_PERIPH_CLOCK, TRUE);
+    crm_periph_clock_enable(CRM_SPI1_PERIPH_CLOCK, TRUE);
+
+    /* 1. Инициализация внешней шины SPI1 (PA4..PA7) */
+    gpio_bits_set(GPIOA, GPIO_PINS_4 | GPIO_PINS_8);
+    gpio_default_para_init(&gpio_cfg);
+    gpio_cfg.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
+    gpio_cfg.gpio_out_type       = GPIO_OUTPUT_PUSH_PULL;
+    gpio_cfg.gpio_mode           = GPIO_MODE_OUTPUT;
+    gpio_cfg.gpio_pins           = GPIO_PINS_4 | GPIO_PINS_8; /* PA4 = SPI1 CS, PA8 = Belly U3 CS */
+    gpio_init(GPIOA, &gpio_cfg);
+
+    gpio_cfg.gpio_mode = GPIO_MODE_MUX;
+    gpio_cfg.gpio_pins = GPIO_PINS_5 | GPIO_PINS_7;
+    gpio_init(GPIOA, &gpio_cfg);
+
+    gpio_cfg.gpio_mode = GPIO_MODE_INPUT;
+    gpio_cfg.gpio_pull = GPIO_PULL_UP;
+    gpio_cfg.gpio_pins = GPIO_PINS_6;
+    gpio_init(GPIOA, &gpio_cfg);
+
+    /* 2. Инициализация штатной нижней площадки U3 SOIC-8 на BlackPill V1.0 (PB1, PB10, PB11, PB6, PB7) */
+    gpio_bits_reset(GPIOB, GPIO_PINS_1 | GPIO_PINS_10);
+    gpio_bits_set(GPIOB, GPIO_PINS_6 | GPIO_PINS_7); /* WP#=1, HOLD#=1 */
+    gpio_cfg.gpio_mode = GPIO_MODE_OUTPUT;
+    gpio_cfg.gpio_pull = GPIO_PULL_NONE;
+    gpio_cfg.gpio_pins = GPIO_PINS_1 | GPIO_PINS_10 | GPIO_PINS_6 | GPIO_PINS_7;
+    gpio_init(GPIOB, &gpio_cfg);
+
+    gpio_cfg.gpio_mode = GPIO_MODE_INPUT;
+    gpio_cfg.gpio_pull = GPIO_PULL_UP;
+    gpio_cfg.gpio_pins = GPIO_PINS_11; /* DO / MISO */
+    gpio_init(GPIOB, &gpio_cfg);
+
+    spi_default_para_init(&spi_cfg);
+    spi_cfg.transmission_mode = SPI_TRANSMIT_FULL_DUPLEX;
+    spi_cfg.master_slave_mode = SPI_MODE_MASTER;
+    spi_cfg.mclk_freq_division = SPI_MCLK_DIV_4; /* 120 МГц / 4 = 30 МГц */
+    spi_cfg.first_bit_transmission = SPI_FIRST_BIT_MSB;
+    spi_cfg.frame_bit_num     = SPI_FRAME_8BIT;
+    spi_cfg.clock_polarity    = SPI_CLOCK_POLARITY_LOW;
+    spi_cfg.clock_phase       = SPI_CLOCK_PHASE_1EDGE;
+    spi_cfg.cs_mode_selection = SPI_CS_SOFTWARE_MODE;
+    spi_init(SPI1, &spi_cfg);
+    spi_enable(SPI1, TRUE);
+
+    /* Сначала проверяем штатную площадку U3 на брюшке BlackPill, затем внешнюю гребёнку SPI1 */
+    if (!probe_bus_id(2U)) {
+        if (!probe_bus_id(1U)) {
+            g_active_bus = 0U;
+        }
     }
 
     if (out_info) {

@@ -36,6 +36,7 @@ static omnia_i2s_source_t g_source_mode   = OMNIA_SRC_ESP32_I2S;
 static float              g_tone_phase    = 0.0f;
 static float              g_tone_step     = 0.0f;
 static float              g_tone_amp      = 0.25f;
+static float              g_src_fade_gain = 1.0f;
 static volatile uint8_t   g_cpu_load_pct  = 0U;
 
 static void update_tone_generator_step(float freq_hz, float level_dbfs)
@@ -66,16 +67,36 @@ static void process_half_buffer(size_t half_offset_u16)
             g_work_in_i32[f * 2U]      = s;
             g_work_in_i32[f * 2U + 1U] = s;
         }
+    } else if (g_source_mode == OMNIA_SRC_BT_I2S3_ASRC) {
+        /* Прямой 24-битный цифровой поток от Bluetooth BTM334 / BT401 через I2S3 + Farrow ASRC */
+        omnia_bt_receiver_pull_audio(g_work_in_i32, AUDIO_HALF_BLOCK_FRAMES);
+    } else if (g_source_mode == OMNIA_SRC_USB_DAC_UAC1) {
+        /* Прямой 24-битный Bit-Perfect поток от звуковой карты USB-DAC UAC1 Async (PA11/PA12) */
+        omnia_usb_dac_pull_audio(g_work_in_i32, AUDIO_HALF_BLOCK_FRAMES);
     } else if (g_source_mode == OMNIA_SRC_NONE_SILENCE) {
         memset(g_work_in_i32, 0, sizeof(g_work_in_i32));
     } else {
-        /* Распаковка 32-битных сэмплов I2S из пары 16-битных регистров DMA (MSB_16, LSB_16) */
+        /* Прямой 24/32-битный поток от стримера ESP32-S3 GPIO5 -> PB14 (без 74HC125!) */
         for (size_t f = 0; f < AUDIO_HALF_BLOCK_FRAMES; ++f) {
             const uint32_t l_u32 = ((uint32_t)rx[f * 4U]      << 16) | rx[f * 4U + 1U];
             const uint32_t r_u32 = ((uint32_t)rx[f * 4U + 2U] << 16) | rx[f * 4U + 3U];
             g_work_in_i32[f * 2U]      = (int32_t)l_u32;
             g_work_in_i32[f * 2U + 1U] = (int32_t)r_u32;
         }
+    }
+
+    /* Плавный бесщёлчковый fade-in (2.7 мс) при переключении между источниками */
+    if (g_src_fade_gain < 1.0f) {
+        float fg = g_src_fade_gain;
+        for (size_t f = 0; f < AUDIO_HALF_BLOCK_FRAMES; ++f) {
+            fg += (1.0f / 128.0f);
+            if (fg > 1.0f) {
+                fg = 1.0f;
+            }
+            g_work_in_i32[f * 2U]      = (int32_t)((float)g_work_in_i32[f * 2U] * fg);
+            g_work_in_i32[f * 2U + 1U] = (int32_t)((float)g_work_in_i32[f * 2U + 1U] * fg);
+        }
+        g_src_fade_gain = fg;
     }
 
     if (g_dsp_ptr) {
@@ -254,6 +275,7 @@ bool omnia_i2s_reconfigure_fs(uint32_t new_fs_hz, bool enable_mclk)
     if (g_dsp_ptr) {
         omnia_dsp_set_sample_rate(g_dsp_ptr, new_fs_hz);
     }
+    omnia_bt_receiver_notify_out_fs(new_fs_hz);
     update_tone_generator_step(1000.0f, -12.0f);
 
     start_i2s2_hardware(g_current_fs, g_mclk_enabled);
@@ -267,12 +289,12 @@ bool omnia_i2s_reconfigure_fs(uint32_t new_fs_hz, bool enable_mclk)
 
 void omnia_i2s_set_source_mode(omnia_i2s_source_t src, float tone_hz, float tone_dbfs)
 {
-    g_source_mode = src;
+    if (g_source_mode != src) {
+        g_source_mode   = src;
+        g_src_fade_gain = 0.0f;
+    }
     if (src == OMNIA_SRC_INTERNAL_TONE) {
-        omnia_hw_select_i2s_mux(OMNIA_SRC_NONE_SILENCE);
         update_tone_generator_step(tone_hz, tone_dbfs);
-    } else {
-        omnia_hw_select_i2s_mux(src);
     }
 }
 

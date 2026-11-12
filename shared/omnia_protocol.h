@@ -60,9 +60,10 @@ typedef enum {
     OMNIA_CMD_PRESET_OP             = 0x19,
 
     /* Управление периферией и питанием */
-    OMNIA_CMD_USB_MUX_CTRL          = 0x20,
+    OMNIA_CMD_USB_MUX_CTRL          = 0x20, /* В Zero-Mux режиме: настройка Триггера USB-DAC (omnia_usb_trigger_cfg_t) */
     OMNIA_CMD_POWER_STATE           = 0x21,
     OMNIA_CMD_MCLK_CFG              = 0x22,
+    OMNIA_CMD_BT_CTRL               = 0x23, /* Управление Bluetooth BTM334 / BT401 (Play/Next/Pair/Reset) */
 
     /* Сервисные команды и Smart Dual-OTA */
     OMNIA_CMD_OTA_BEGIN             = 0x30,
@@ -77,8 +78,12 @@ typedef enum {
     OMNIA_EVT_ACK_NACK              = 0x82,
     OMNIA_EVT_HEARTBEAT             = 0x83,
     OMNIA_EVT_OTA_PROGRESS          = 0x84,
-    OMNIA_EVT_SYS_INFO              = 0x85
+    OMNIA_EVT_SYS_INFO              = 0x85,
+    OMNIA_EVT_BT_META               = 0x86, /* Метаданные трека AVRCP 1.6 и кодек (aptX-HD 24-bit и др.) */
+    OMNIA_EVT_USB_TRIGGER           = 0x87  /* Срабатывание/отпускание триггера +5V звуковой карты USB   */
 } omnia_cmd_id_t;
+
+#define OMNIA_CMD_USB_TRIGGER_CFG       OMNIA_CMD_USB_MUX_CTRL
 
 /* Коды результата в пакетах ACK/NACK */
 typedef enum {
@@ -90,13 +95,36 @@ typedef enum {
     OMNIA_STATUS_ERR_UNSUPPORTED    = 0x05
 } omnia_err_code_t;
 
-/* Источники сигнала на входе I2S AT32 */
+/* Цифровые источники сигнала на входах AT32F403 (Zero-Mux 24-Bit Architecture) */
 typedef enum {
     OMNIA_SRC_NONE_SILENCE          = 0,
-    OMNIA_SRC_ESP32_I2S             = 1,    /* 74HC125 канал 1 (OE_ESP = LOW) */
-    OMNIA_SRC_EXT_BT_I2S            = 2,    /* 74HC125 канал 2 (OE_BT  = LOW) */
-    OMNIA_SRC_INTERNAL_TONE         = 3     /* Тестовый генератор синуса внутри AT32 */
+    OMNIA_SRC_ESP32_I2S             = 1,    /* Прямой вход ESP32-S3 GPIO5 -> AT32 PB14 (I2S2EXT_SD) */
+    OMNIA_SRC_BT_I2S3_ASRC          = 2,    /* Прямой вход Bluetooth BTM334/BT401 -> I2S3 + Farrow ASRC */
+    OMNIA_SRC_INTERNAL_TONE         = 3,    /* Тестовый генератор синуса внутри AT32 */
+    OMNIA_SRC_USB_DAC_UAC1          = 4     /* Нативный вход USB-DAC AT32 PA11/PA12 (24-bit UAC1 Async) */
 } omnia_i2s_source_t;
+
+#define OMNIA_SRC_EXT_BT_I2S            OMNIA_SRC_BT_I2S3_ASRC
+
+/* Кодек активного соединения Bluetooth (для отображения бейджа на TFT и в Web-UI) */
+typedef enum {
+    OMNIA_BT_CODEC_NONE             = 0,
+    OMNIA_BT_CODEC_SBC              = 1,
+    OMNIA_BT_CODEC_AAC              = 2,
+    OMNIA_BT_CODEC_APTX             = 3,
+    OMNIA_BT_CODEC_APTX_LL          = 4,
+    OMNIA_BT_CODEC_APTX_HD          = 5     /* 24-bit / 48 kHz (SJR-BTM334 QCC3034) */
+} omnia_bt_codec_t;
+
+/* Действия управления модулем Bluetooth (OMNIA_CMD_BT_CTRL) */
+typedef enum {
+    OMNIA_BT_ACT_PLAY_PAUSE         = 1,
+    OMNIA_BT_ACT_NEXT               = 2,
+    OMNIA_BT_ACT_PREV               = 3,
+    OMNIA_BT_ACT_PAIRING            = 4,
+    OMNIA_BT_ACT_DISCONNECT         = 5,
+    OMNIA_BT_ACT_RESET_MODULE       = 6
+} omnia_bt_action_t;
 
 /* Режимы коммутатора FSUSB30MUX */
 typedef enum {
@@ -299,8 +327,18 @@ typedef struct {
 
 /* 0x20 / 0x21 / 0x22: Периферия */
 typedef struct {
-    uint8_t  usb_mux_mode;      /* omnia_usb_mux_mode_t */
+    uint8_t  usb_mux_mode;      /* Устаревший 1-байтный формат обратной совместимости */
 } omnia_usb_mux_cmd_t;
+
+/* 0x20: OMNIA_CMD_USB_TRIGGER_CFG — настройка включаемой Триггер-функции звуковой карты USB-DAC */
+typedef struct {
+    uint8_t  enable_auto_switch;    /* 1 = ВКЛ: автопереключение на USB-DAC при появлении +5V USB; 0 = ВЫКЛ */
+    uint8_t  wake_from_standby;     /* 1 = будить стример и реле из Standby при включении ТВ-бокса / ПК     */
+    uint8_t  auto_return_prev_src;  /* 1 = при выключении ТВ-бокса/ПК возвращать прежний вход (Радио/USB/BT)*/
+    uint8_t  prefer_vbus_pin;       /* 1 = детектор PB9 VBUS_DET (+ резерв SOF); 0 = только пакеты USB SOF  */
+    uint16_t debounce_on_ms;        /* Защита от дребезга при подаче +5V (по умолчанию 150 мс)              */
+    uint16_t debounce_off_ms;       /* Пауза отпускания при выключении/перезагрузке хоста (по умолч. 800 мс)*/
+} omnia_usb_trigger_cfg_t;
 
 typedef struct {
     uint8_t  power_mode;        /* omnia_power_mode_t */
@@ -311,21 +349,50 @@ typedef struct {
     uint8_t  mclk_enable;       /* 0 = 3-wire I2S (PCM5102 PLL), 1 = выдавать MCLK 256fs на PA3 */
 } omnia_mclk_cmd_t;
 
+/* 0x23: OMNIA_CMD_BT_CTRL — управление Bluetooth SJR-BTM334 / BT401 */
+typedef struct {
+    uint8_t  action;            /* omnia_bt_action_t */
+    uint8_t  param;             /* Резерв / громкость AVRCP 0..127 */
+} omnia_bt_ctrl_cmd_t;
+
 /* 0x80: EVT_STATUS (Периодический и событийный отчёт AT32 -> ESP32) */
 typedef struct {
-    uint32_t sample_rate_hz;    /* Текущая тактовая частота I2S мастера */
+    uint32_t sample_rate_hz;    /* Текущая тактовая частота I2S2 мастера */
     uint16_t active_dsp_mask;   /* Активные звенья DSP */
     uint8_t  muted;             /* 1 = тракт в Mute */
-    uint8_t  bit_perfect_mode;  /* 1 = математический 1:1 Bit-Perfect активен! */
+    uint8_t  bit_perfect_mode;  /* 1 = математический 1:1 24-bit Bit-Perfect активен! */
     uint8_t  active_i2s_src;    /* Текущий открытый вход (omnia_i2s_source_t) */
-    uint8_t  usb_vbus_detected; /* 1 = обнаружено +5V от ПК/Android/ТВ-бокса на гнезде USB-C */
-    uint8_t  usb_active_port;   /* 0 = USB-A (Host флешка), 1 = USB-C (Device UAC1) */
+    uint8_t  usb_vbus_detected; /* 1 = обнаружено +5V / активный хост от ТВ-бокса/ПК/смартфона */
+    uint8_t  usb_active_port;   /* 1 = в данный момент выбран вход USB-DAC UAC1 */
     uint8_t  ab_compare_bypass; /* 1 = сейчас нажато сравнение «Чистый исходник» */
     uint8_t  cpu_load_percent;  /* Реальная загрузка ядра Cortex-M4F по счётчику тактов DWT */
     uint8_t  dc_fault_tripped;  /* 1 = сработала аварийная защита от постоянки на выходе */
     uint16_t clip_events;       /* Счётчик перехваченных лимитером пиков */
     float    current_vol_db;    /* Текущее сглаженное положение громкости */
+    uint8_t  usb_streaming;     /* 1 = идёт изохронный 24-битный поток UAC1 */
+    uint8_t  bt_codec_id;       /* Активный кодек Bluetooth (omnia_bt_codec_t) */
+    uint8_t  usb_trigger_en;    /* 1 = авто-триггер USB-DAC включён пользователем */
 } omnia_at32_status_t;
+
+/* 0x86: EVT_BT_META — Метаданные трека AVRCP 1.6 и кодек Bluetooth */
+typedef struct {
+    uint8_t  connected;         /* 1 = смартфон подключён */
+    uint8_t  playing;           /* 1 = идёт воспроизведение A2DP */
+    uint8_t  codec_id;          /* omnia_bt_codec_t (вкл. aptX-HD 24-bit) */
+    uint8_t  bit_depth;         /* 16 или 24 бит */
+    uint32_t sample_rate_hz;    /* 44100 или 48000 Гц */
+    char     title[64];         /* UTF-8 название трека */
+    char     artist[48];        /* UTF-8 исполнитель */
+} omnia_bt_meta_evt_t;
+
+/* 0x87: EVT_USB_TRIGGER — Событие срабатывания/отпускания триггера +5V USB-DAC */
+typedef struct {
+    uint8_t  vbus_active;           /* 1 = питание/хост USB обнаружены, 0 = хост отключён/уснул */
+    uint8_t  active_source;         /* Новый активный вход omnia_i2s_source_t                   */
+    uint8_t  previous_source;       /* Предыдущий вход (для возврата и отображения на HUD)      */
+    uint8_t  woke_from_standby;     /* 1 = стример автоматически пробуждён из режима Standby    */
+    uint32_t usb_host_sample_rate;  /* Запрошенная хостом частота UAC1 (48000 или 44100 Гц)     */
+} omnia_usb_trigger_evt_t;
 
 /* 0x81: EVT_SIGNAL_METERS (Для стрелочных VU-индикаторов на TFT-экране) */
 typedef struct {

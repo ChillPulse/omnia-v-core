@@ -13,6 +13,7 @@
 #include "omnia_crc16.h"
 #include "omnia_protocol.h"
 #include "omnia_dsp.h"
+#include "omnia_asrc.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -245,14 +246,124 @@ static void test_room_speaker_delay_and_phase(void)
     printf("[OK] Рум-коррекция АС: суб-сэмпловая задержка (0.25 мс -> сэмпл #12) и инверсия фазы 180° точны!\n");
 }
 
+static void test_farrow_asrc_24bit_sine_and_drift_servo(void)
+{
+    static omnia_asrc_t asrc;
+    omnia_asrc_init(&asrc, 44100U, 48000U);
+
+    /* Симулируем приём Bluetooth 44.1 кГц + дрейф кварца +300 ppm на выходную сетку 48.0 кГц */
+    double phase = 0.0;
+    double in_accum = 0.0;
+    const double true_ratio = (44100.0 * 1.0003) / 48000.0;
+    double max_steady_amp = 0.0;
+
+    for (int blk = 0; blk < 120; ++blk) {
+        in_accum += 64.0 * true_ratio;
+        uint32_t in_frames = (uint32_t)in_accum;
+        in_accum -= (double)in_frames;
+
+        int32_t in_lr[160];
+        for (uint32_t i = 0; i < in_frames; ++i) {
+            const double s = 0.5 * sin(phase);
+            phase += 2.0 * M_PI * 1000.0 / 44100.0;
+            const int32_t q31 = (int32_t)(s * 2147483520.0);
+            in_lr[i * 2U + 0U] = q31;
+            in_lr[i * 2U + 1U] = -q31;
+        }
+        omnia_asrc_push_interleaved(&asrc, in_lr, in_frames);
+
+        int32_t out_lr[128];
+        omnia_asrc_pull_interleaved(&asrc, out_lr, 64U);
+
+        if (blk > 20) {
+            assert(asrc.primed);
+            for (int k = 0; k < 128; ++k) {
+                const double a = fabs((double)out_lr[k] / 2147483648.0);
+                if (a > max_steady_amp) {
+                    max_steady_amp = a;
+                }
+            }
+        }
+    }
+
+    assert(asrc.overrun_count == 0U);
+    assert(asrc.underrun_count == 0U);
+    assert(omnia_asrc_level(&asrc) > 180U && omnia_asrc_level(&asrc) < 340U);
+    assert(max_steady_amp > 0.48 && max_steady_amp < 0.52);
+    printf("[OK] Farrow Cubic ASRC (BT 44.1k+300ppm -> 48k 24-bit): буфер=%u кадров, пик=%.4f, 0 срывов!\n",
+           (unsigned)omnia_asrc_level(&asrc), max_steady_amp);
+}
+
+static void test_zero_mux_usb_trigger_and_bt_meta_protocol(void)
+{
+    omnia_proto_parser_t parser;
+    omnia_proto_parser_init(&parser);
+
+    /* 1. Проверяем упаковку и CRC16 команды настройки Триггера звуковой карты USB-DAC */
+    const omnia_usb_trigger_cfg_t trig_tx = {
+        .enable_auto_switch   = 1U,
+        .wake_from_standby    = 1U,
+        .auto_return_prev_src = 1U,
+        .prefer_vbus_pin      = 1U,
+        .debounce_on_ms       = 150U,
+        .debounce_off_ms      = 800U
+    };
+    uint8_t wire[OMNIA_PROTO_MAX_FRAME_SIZE];
+    const size_t n1 = omnia_proto_build_frame(
+        wire, sizeof(wire), OMNIA_FLAG_ACK_REQ, 0x42U,
+        OMNIA_CMD_USB_TRIGGER_CFG, &trig_tx, sizeof(trig_tx));
+    assert(n1 > 0U);
+
+    bool got1 = false;
+    for (size_t i = 0; i < n1; ++i) {
+        if (omnia_proto_parser_feed(&parser, wire[i])) {
+            got1 = true;
+        }
+    }
+    assert(got1 && parser.hdr.cmd == OMNIA_CMD_USB_TRIGGER_CFG);
+    omnia_usb_trigger_cfg_t trig_rx;
+    memcpy(&trig_rx, parser.payload, sizeof(trig_rx));
+    assert(trig_rx.enable_auto_switch == 1U && trig_rx.debounce_off_ms == 800U);
+
+    /* 2. Проверяем упаковку и CRC16 события метаданных Bluetooth aptX-HD 24-bit с кириллицей UTF-8 */
+    omnia_bt_meta_evt_t meta_tx;
+    memset(&meta_tx, 0, sizeof(meta_tx));
+    meta_tx.connected      = 1U;
+    meta_tx.playing        = 1U;
+    meta_tx.codec_id       = OMNIA_BT_CODEC_APTX_HD;
+    meta_tx.bit_depth      = 24U;
+    meta_tx.sample_rate_hz = 48000U;
+    strcpy(meta_tx.artist, "Кино");
+    strcpy(meta_tx.title, "Спокойная ночь (24-bit Remaster)");
+
+    const size_t n2 = omnia_proto_build_frame(
+        wire, sizeof(wire), 0U, 0x43U, OMNIA_EVT_BT_META, &meta_tx, sizeof(meta_tx));
+    assert(n2 > 0U);
+
+    bool got2 = false;
+    for (size_t i = 0; i < n2; ++i) {
+        if (omnia_proto_parser_feed(&parser, wire[i])) {
+            got2 = true;
+        }
+    }
+    assert(got2 && parser.hdr.cmd == OMNIA_EVT_BT_META);
+    omnia_bt_meta_evt_t meta_rx;
+    memcpy(&meta_rx, parser.payload, sizeof(meta_rx));
+    assert(meta_rx.codec_id == OMNIA_BT_CODEC_APTX_HD && meta_rx.bit_depth == 24U);
+    assert(strcmp(meta_rx.artist, "Кино") == 0);
+    printf("[OK] Протокол Zero-Mux 24-Bit: Триггер USB-DAC (+5V) и метаданные BT aptX-HD (UTF-8) проверены!\n");
+}
+
 int main(void)
 {
-    printf("=== Запуск модульных тестов OMNIA v2.0 ===\n");
+    printf("=== Запуск модульных тестов OMNIA v2.1 (Zero-Mux 24-Bit) ===\n");
     test_crc16_ccitt_vector();
     test_protocol_framing_and_noise_recovery();
     test_bit_perfect_exact_passthrough();
     test_full_dsp_aether_subbass_mono_and_limiter();
     test_room_speaker_delay_and_phase();
-    printf("=== ВСЕ ТЕСТЫ УСПЕШНО ПРОЙДЕНЫ ===\n");
+    test_farrow_asrc_24bit_sine_and_drift_servo();
+    test_zero_mux_usb_trigger_and_bt_meta_protocol();
+    printf("=== ВСЕ 7 НАБОРОВ ТЕСТОВ УСПЕШНО ПРОЙДЕНЫ ===\n");
     return 0;
 }

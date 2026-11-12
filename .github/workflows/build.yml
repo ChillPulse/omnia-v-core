@@ -13,11 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compile & Run Studio DSP + CRC16 Suite
+      - name: Compile & Run Studio DSP + ASRC + Zero-Mux Protocol Suite
         run: |
           gcc -O2 -Wall -Wextra -Werror \
             -Ishared -Isrc/at32/include \
-            tests/test_dsp_and_proto.c src/at32/dsp_engine.c \
+            tests/test_dsp_and_proto.c src/at32/dsp_engine.c src/at32/asrc_farrow.c \
             -lm -o tests/test_runner
           ./tests/test_runner
 

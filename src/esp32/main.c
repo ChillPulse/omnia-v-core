@@ -91,12 +91,16 @@ void app_main(void)
                  (unsigned long)(at32_info.sysclk_hz / 1000000UL),
                  at32_info.sram_size_kb);
         if (at32_info.ext_flash_present) {
-            ESP_LOGI(TAG, "Обнаружена внешняя SPI NOR Flash на AT32: JEDEC=0x%06lX, объём=%lu КБ",
+            ESP_LOGI(TAG, "Обнаружена внешняя SPI NOR Flash на AT32 (шина #%u): JEDEC=0x%06lX, объём=%lu КБ",
+                     at32_info.ext_flash_present,
                      (unsigned long)at32_info.ext_flash_jedec,
                      (unsigned long)(at32_info.ext_flash_bytes / 1024UL));
         } else {
             ESP_LOGI(TAG, "Внешняя SPI Flash на AT32 не распаяна — пресеты хранятся во внутренней Flash AT32");
         }
+
+        /* Синхронизируем сохранённую настройку Триггера звуковой карты USB-DAC из NVS */
+        (void)omnia_at32_sync_usb_trigger_to_at32();
 
         /* Загружаем стартовый студийный профиль AETHER + ISO 226 и комфортную громкость -24 дБ */
         (void)omnia_at32_load_default_studio_profile();

@@ -1,7 +1,15 @@
 /**
  * @file    omnia_pins.h
- * @brief   Единая верифицированная карта пинов OMNIA Flagship Streamer v2.0
- *          (ESP32-S3-DevKitC-1 N16R8 44-pin + WeAct AT32F403ACGU7 BlackPill + TENSTAR ST7789 8080-8P)
+ * @brief   Единая верифицированная карта пинов OMNIA Flagship Streamer v2.1 (Zero-Mux 24-Bit)
+ *          ESP32-S3-DevKitC-1 N16R8 + WeAct AT32F403ACGU7 BlackPill + BTM334 (QCC3034) / BT401 Master
+ *
+ *  КЛЮЧЕВЫЕ ПРЕИМУЩЕСТВА АРХИТЕКТУРЫ ZERO-MUX 24-BIT:
+ *    - 0 микросхем мультиплексоров (отказ от FSUSB30MUX, 74HC125 и ключа питания AO3401):
+ *      * ESP32-S3 GPIO5 (DOUT) идёт НАПРЯМУЮ в AT32 PB14 (I2S2EXT_SD);
+ *      * Bluetooth (BTM334 / BT401) идёт НАПРЯМУЮ во второй аппаратный порт AT32 I2S3 (PA15/PB3/PB5);
+ *      * Гнездо USB-A (флешка/HDD) навсегда закреплено за ESP32-S3 (GPIO19/20 + самовосст. предохранитель PPTC);
+ *      * Вход USB-DAC (24-bit / 48 и 44.1 кГц UAC1 Async) работает НАПРЯМУЮ на родном USBFS AT32 (PA11/PA12)
+ *        с включаемой триггер-функцией автопереключения по +5V (PB9 VBUS_DET + резерв по USB SOF)!
  */
 
 #ifndef OMNIA_PINS_H
@@ -16,9 +24,9 @@
 #define OMNIA_ESP_UART0_TX_GPIO         43
 #define OMNIA_ESP_UART0_RX_GPIO         44
 
-/* --- Аппаратный USB OTG Full-Speed (на общие выводы 4/6 чипа FSUSB30MUX) --- */
-#define OMNIA_ESP_USB_DM_GPIO           19      /* FSUSB30MUX pin 6 (D-) */
-#define OMNIA_ESP_USB_DP_GPIO           20      /* FSUSB30MUX pin 4 (D+) */
+/* --- Выделенный аппаратный USB Host Full-Speed (напрямую на гнездо USB-A для флешки/HDD) --- */
+#define OMNIA_ESP_USB_DM_GPIO           19      /* USB-A pin 2 (D-) напрямую, без FSUSB30MUX! */
+#define OMNIA_ESP_USB_DP_GPIO           20      /* USB-A pin 3 (D+) напрямую, без FSUSB30MUX! */
 
 /* --- Дисплей TENSTAR 2.8" IPS ST7789 (разъём 8080-8P, FFC 16-pin 1.0mm) --- */
 #define OMNIA_ESP_LCD_BL_GPIO           45      /* FFC #1  (BL)  — встроенный ключ U7 на экране + 10k к GND у ESP32 */
@@ -42,12 +50,12 @@
 #define OMNIA_ESP_SD_MISO_GPIO          17
 #define OMNIA_ESP_SD_CS_GPIO            18
 
-/* --- Цифровой аудиовыход I2S Slave TX (тактируется от мастера AT32F403) --- */
-#define OMNIA_ESP_I2S_BCK_GPIO          4       /* Вход BCLK от AT32 PB13 */
-#define OMNIA_ESP_I2S_DOUT_GPIO         5       /* Выход DATA на 74HC125 1A */
-#define OMNIA_ESP_I2S_WS_GPIO           6       /* Вход LRCK от AT32 PB12 */
+/* --- Цифровой аудиовыход 24/32-bit I2S Slave TX (напрямую в AT32F403 без 74HC125!) --- */
+#define OMNIA_ESP_I2S_BCK_GPIO          4       /* Вход BCLK <- напрямую от AT32 PB13 */
+#define OMNIA_ESP_I2S_DOUT_GPIO         5       /* Выход DATA -> напрямую на AT32 PB14 (I2S2EXT_SD) */
+#define OMNIA_ESP_I2S_WS_GPIO           6       /* Вход LRCK <- напрямую от AT32 PB12 */
 
-/* --- Высокоскоростной канал управления и Smart OTA с AT32F403 (UART1 DMA) --- */
+/* --- Высокоскоростной канал управления, метаданных BT и Smart OTA с AT32F403 (UART1 DMA) --- */
 #define OMNIA_ESP_AT32_TX_GPIO          7       /* -> AT32 PA10 (USART1_RX) */
 #define OMNIA_ESP_AT32_RX_GPIO          8       /* <- AT32 PA9  (USART1_TX) */
 
@@ -62,43 +70,61 @@
 #define OMNIA_ESP_ENC_BTN_GPIO          0       /* Кнопка энкодера (pull-up) + сервисный вход при старте */
 #define OMNIA_ESP_IR_RX_GPIO            40      /* Самообучаемый ИК-приёмник TSOP38238 (RMT RX) */
 #define OMNIA_ESP_ADC_KEYS_GPIO         1       /* ADC1_CH0 — резистивная лестница на 7 кнопок */
-#define OMNIA_ESP_RGB_RING_GPIO         48      /* RMT TX -> SN74AHCT125N (5V) -> 12x WS2812B */
+#define OMNIA_ESP_RGB_RING_GPIO         48      /* RMT TX -> буфер 5V / развязка -> 12x WS2812B */
 #define OMNIA_RGB_RING_LED_COUNT        12
 
 
 /* ========================================================================== *
- *  ЧАСТЬ 2. WeAct AT32F403ACGU7 BlackPill (Cortex-M4F @ 240 МГц, 224 КБ SRAM)
- *  Свободны для отладки/прошивки: PA11/PA12 (USB DFU), PA13/PA14 (SWD)
+ *  ЧАСТЬ 2. WeAct AT32F403ACGU7 BlackPill V1.0 (Cortex-M4F @ 240 МГц, 224 КБ SRAM)
+ *  Сверено по официальной схеме BlackPill_AT32F403ACxU_V10.SchDoc!
  * ========================================================================== */
 
 /*
- * I2S2 Full-Duplex Master + MCLK:
- *   PB12 = I2S2_WS    (LRCK Master Out -> ESP32 GPIO6 & PCM5102A LCK)
- *   PB13 = I2S2_CK    (BCLK Master Out -> ESP32 GPIO4 & PCM5102A BCK)
- *   PB14 = I2S2EXT_SD (Audio RX In     <- выход 1Y+2Y селектора 74HC125)
- *   PB15 = I2S2_SD    (Audio TX Out    -> PCM5102A DIN)
- *   PA3  = I2S2_MCK   (MCLK 256*Fs Out -> опц. перемычка на PCM5102A SCK / внешние ЦАПы; ремап SPI2_GMUX_0001)
+ * 1) I2S2 Full-Duplex Master + MCLK (24/32-bit тактовый мастер для ESP32-S3 и ЦАПа PCM5102A):
+ *    PB12 = I2S2_WS    (LRCK Master Out -> ESP32 GPIO6 & PCM5102A LCK)
+ *    PB13 = I2S2_CK    (BCLK Master Out -> ESP32 GPIO4 & PCM5102A BCK)
+ *    PB14 = I2S2EXT_SD (Audio RX In     <- НАПРЯМУЮ от ESP32 GPIO5 DOUT)
+ *    PB15 = I2S2_SD    (Audio TX Out    -> НАПРЯМУЮ на PCM5102A DIN)
+ *    PA3  = I2S2_MCK   (MCLK 256*Fs Out -> опц. для внешних Hi-End ЦАПов; ремап SPI2_GMUX_0001)
  *
- * USART1 (протокол с ESP32-S3, 921600 / 2000000 бод):
- *   PA9  = USART1_TX  (-> ESP32 GPIO8)
- *   PA10 = USART1_RX  (<- ESP32 GPIO7)
+ * 2) I2S3 Slave RX на DMA2 (Прямой 24-bit цифровой вход от Bluetooth BTM334 QCC3034 / BT401 Master):
+ *    Активируется через SWJTAG_GMUX_010 (SWD PA13/PA14 остаётся полностью рабочим!) + SPI3_GMUX_0010:
+ *    PA15 = I2S3_WS    (BT LRCK In <- BTM334 Pin 4 PIO17 / BT401 PB1)
+ *    PB3  = I2S3_CK    (BT BCLK In <- BTM334 Pin 5 PIO16 / BT401 PB0)
+ *    PB5  = I2S3_SD    (BT DATA In <- BTM334 Pin 3 PIO18 / BT401 PB2)
  *
- * SPI1 (посадочное место SOIC-8 на брюшке WeAct BlackPill — универсальная NOR Flash JEDEC/SFDP):
- *   PA4  = SPI1_CS    (программный CS)
- *   PA5  = SPI1_SCK
- *   PA6  = SPI1_MISO
- *   PA7  = SPI1_MOSI
+ * 3) UART4 на DMA2/IRQ (Управление Bluetooth и приём метаданных треков AVRCP 1.6 @ 115200 8N1):
+ *    Активируется через ремап UART4_GMUX_0010:
+ *    PA0  = UART4_TX   (-> RX модуля BTM334 / BT401 PA4)
+ *    PA1  = UART4_RX   (<- TX модуля BTM334 / BT401 PA3)
+ *    PA2  = BT_CTRL_EN (Выход сброса / принудительного спаривания BT-модуля)
  *
- * Линии бесщёлчкового Anti-Pop, питания и селекторов:
- *   PB0  = DAC_XSMT   (10 кОм pull-DOWN к GND! LOW = Mute при старте, HIGH = Unmute PCM5102A)
- *   PB1  = AMP_MUTE   (10 кОм pull-down к GND, управление mute УМЗЧ)
- *   PB10 = RELAY_EN   (10 кОм pull-down к GND, выходное реле / питание аналога)
- *   PB6  = OE_ESP_N   (10 кОм pull-up к +3.3V, активный LOW -> 74HC125 1OE: поток от ESP32)
- *   PB7  = OE_BT_N    (10 кОм pull-up к +3.3V, активный LOW -> 74HC125 2OE: резервный I2S вход)
- *   PB8  = VBUS_EN    (ключ NPN + AO3401 подачи +5V на гнездо USB-A для флешки)
- *   PB9  = VBUS_DET   (вход с делителя 10k/15k от гнезда USB-C для автоперехода в USB-DAC)
- *   PB11 = USB_SEL    (пин S мультиплексора FSUSB30MUX: 0 = HSD1 USB-A Host, 1 = HSD2 USB-C DAC)
- *   PC13 = STATUS_LED (бортовой светодиод WeAct BlackPill, активный LOW)
+ * 4) Нативный вход звуковой карты USB-DAC 24-bit / 48 (44.1) кГц UAC1 Async + Триггер +5V:
+ *    PA11 = USB_DM     (Родной Type-C на BlackPill ИЛИ выносное гнездо USB-C/USB-B на задней панели)
+ *    PA12 = USB_DP     (Родной Type-C на BlackPill ИЛИ выносное гнездо USB-C/USB-B на задней панели)
+ *    PB9  = VBUS_DET   (Триггер +5V от ТВ-бокса/ПК/смартфона через делитель 10 кОм / 15 кОм + 100 нФ;
+ *                       поддерживает включаемое автопереключение, пробуждение из Standby и автовозврат!)
+ *
+ * 5) USART1 (Протокол с ESP32-S3, 921600 / 2000000 бод):
+ *    PA9  = USART1_TX  (-> ESP32 GPIO8)
+ *    PA10 = USART1_RX  (<- ESP32 GPIO7)
+ *
+ * 6) Линии бесщёлчкового Anti-Pop (разведены на чистые пины БЕЗ конфликта с SOIC-8 флешкой U3!):
+ *    PB0  = DAC_XSMT   (10 кОм pull-DOWN к GND! LOW = Mute при старте, HIGH = Unmute PCM5102A)
+ *    PB4  = AMP_MUTE   (10 кОм pull-DOWN к GND, управление mute внешнего УМЗЧ)
+ *    PB8  = RELAY_EN   (10 кОм pull-DOWN к GND -> 1 кОм -> база NPN -> выходное реле Anti-Pop)
+ *    PC13 = STATUS_LED (бортовой светодиод WeAct BlackPill, активный LOW)
+ *
+ * 7) Опциональная внешняя SPI NOR Flash (автоопределение JEDEC + SFDP сразу на ДВУХ площадках!):
+ *    - Нижняя площадка U3 SOIC-8 на брюшке WeAct BlackPill: PA8(CS), PB1(SCK), PB10(DI), PB11(DO), PB7(WP), PB6(HOLD)
+ *    - Внешняя гребёнка SPI1: PA4(CS), PA5(SCK), PA6(MISO), PA7(MOSI)
+ *    (Если флешка не распаяна — пресеты прозрачно пишутся в верхние сектора внутренней 1 МБ Flash AT32).
  */
+
+#define OMNIA_AT32_DAC_XSMT_PIN         GPIO_PINS_0     /* GPIOB */
+#define OMNIA_AT32_AMP_MUTE_PIN         GPIO_PINS_4     /* GPIOB */
+#define OMNIA_AT32_RELAY_EN_PIN         GPIO_PINS_8     /* GPIOB */
+#define OMNIA_AT32_VBUS_DET_PIN         GPIO_PINS_9     /* GPIOB */
+#define OMNIA_AT32_BT_CTRL_PIN          GPIO_PINS_2     /* GPIOA */
 
 #endif /* OMNIA_PINS_H */

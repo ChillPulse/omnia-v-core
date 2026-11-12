@@ -10,6 +10,8 @@
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -31,11 +33,43 @@ static volatile uint8_t      g_wait_seq       = 0U;
 static volatile uint8_t      g_wait_cmd       = 0U;
 static volatile uint8_t      g_last_ack_code  = OMNIA_STATUS_OK;
 
-static omnia_sys_info_t      g_cached_info;
-static omnia_at32_status_t   g_cached_status;
-static omnia_signal_meters_t g_cached_meters;
-static uint8_t               g_prev_vbus      = 0xFFU;
-static omnia_vbus_event_cb_t g_vbus_cb        = NULL;
+static omnia_sys_info_t        g_cached_info;
+static omnia_at32_status_t     g_cached_status;
+static omnia_signal_meters_t   g_cached_meters;
+static omnia_bt_meta_evt_t     g_cached_bt_meta;
+static uint8_t                 g_prev_vbus      = 0xFFU;
+static omnia_vbus_event_cb_t   g_vbus_cb        = NULL;
+
+/* Сохраняемая в NVS настройка включаемой Триггер-функции звуковой карты USB-DAC */
+static omnia_usb_trigger_cfg_t g_usb_trig_cfg = {
+    .enable_auto_switch   = 1U,     /* По умолчанию ВКЛ (переключается в Web-UI и на экране TFT) */
+    .wake_from_standby    = 1U,     /* Пробуждать стример при подаче +5V от ТВ-приставки / ПК    */
+    .auto_return_prev_src = 1U,     /* Автовозврат на предыдущий вход при выключении ТВ-бокса    */
+    .prefer_vbus_pin      = 1U,     /* Детектор пина PB9 VBUS_DET (+ резерв по пакетам USB SOF)  */
+    .debounce_on_ms       = 150U,
+    .debounce_off_ms      = 800U
+};
+
+static void nvs_load_usb_trigger_cfg(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("omnia_cfg", NVS_READONLY, &h) == ESP_OK) {
+        size_t sz = sizeof(g_usb_trig_cfg);
+        (void)nvs_get_blob(h, "usb_trig", &g_usb_trig_cfg, &sz);
+        nvs_close(h);
+    }
+}
+
+static void nvs_save_usb_trigger_cfg(const omnia_usb_trigger_cfg_t *cfg)
+{
+    nvs_handle_t h;
+    if (nvs_open("omnia_cfg", NVS_READWRITE, &h) == ESP_OK) {
+        if (nvs_set_blob(h, "usb_trig", cfg, sizeof(*cfg)) == ESP_OK) {
+            (void)nvs_commit(h);
+        }
+        nvs_close(h);
+    }
+}
 
 static void handle_at32_frame(const omnia_frame_hdr_t *hdr, const uint8_t *payload)
 {
@@ -83,6 +117,35 @@ static void handle_at32_frame(const omnia_frame_hdr_t *hdr, const uint8_t *paylo
         xSemaphoreTake(g_state_lock, portMAX_DELAY);
         memcpy(&g_cached_meters, payload, sizeof(g_cached_meters));
         xSemaphoreGive(g_state_lock);
+        return;
+    }
+
+    if (hdr->cmd == OMNIA_EVT_BT_META && hdr->payload_len == sizeof(omnia_bt_meta_evt_t)) {
+        xSemaphoreTake(g_state_lock, portMAX_DELAY);
+        memcpy(&g_cached_bt_meta, payload, sizeof(g_cached_bt_meta));
+        xSemaphoreGive(g_state_lock);
+        ESP_LOGI(TAG, "BT AVRCP Meta: conn=%u codec=%u (%ubit/%luHz) '%s' — '%s'",
+                 g_cached_bt_meta.connected,
+                 g_cached_bt_meta.codec_id,
+                 g_cached_bt_meta.bit_depth,
+                 (unsigned long)g_cached_bt_meta.sample_rate_hz,
+                 g_cached_bt_meta.artist,
+                 g_cached_bt_meta.title);
+        return;
+    }
+
+    if (hdr->cmd == OMNIA_EVT_USB_TRIGGER && hdr->payload_len == sizeof(omnia_usb_trigger_evt_t)) {
+        omnia_usb_trigger_evt_t ev;
+        memcpy(&ev, payload, sizeof(ev));
+        ESP_LOGI(TAG, "Сработал триггер USB-DAC: vbus=%u, вход=%u (пред=%u), wake=%u, Fs=%lu Гц",
+                 ev.vbus_active,
+                 ev.active_source,
+                 ev.previous_source,
+                 ev.woke_from_standby,
+                 (unsigned long)ev.usb_host_sample_rate);
+        if (g_vbus_cb) {
+            g_vbus_cb(ev.vbus_active != 0U, (ev.active_source == OMNIA_SRC_USB_DAC_UAC1) ? 1U : 0U);
+        }
     }
 }
 
@@ -115,6 +178,8 @@ esp_err_t omnia_at32_bridge_init(omnia_vbus_event_cb_t vbus_cb)
     if (!g_tx_mutex || !g_ack_sem || !g_info_sem || !g_state_lock) {
         return ESP_ERR_NO_MEM;
     }
+
+    nvs_load_usb_trigger_cfg();
 
     const uart_config_t uart_cfg = {
         .baud_rate  = OMNIA_UART_DEFAULT_BAUD,
@@ -325,4 +390,65 @@ void omnia_at32_get_latest_meters(omnia_signal_meters_t *out_meters)
     xSemaphoreTake(g_state_lock, portMAX_DELAY);
     *out_meters = g_cached_meters;
     xSemaphoreGive(g_state_lock);
+}
+
+void omnia_at32_get_latest_bt_meta(omnia_bt_meta_evt_t *out_meta)
+{
+    if (!out_meta || !g_state_lock) {
+        return;
+    }
+    xSemaphoreTake(g_state_lock, portMAX_DELAY);
+    *out_meta = g_cached_bt_meta;
+    xSemaphoreGive(g_state_lock);
+}
+
+esp_err_t omnia_at32_set_input_source(omnia_i2s_source_t src)
+{
+    const omnia_cmd_source_t req = {
+        .source          = (uint8_t)src,
+        .tone_freq_hz    = 1000.0f,
+        .tone_level_dbfs = -12.0f
+    };
+    return omnia_at32_send_cmd_sync(OMNIA_CMD_SET_I2S_SOURCE, &req, sizeof(req), 45U);
+}
+
+esp_err_t omnia_at32_set_usb_trigger_cfg(const omnia_usb_trigger_cfg_t *cfg, bool save_nvs)
+{
+    if (!cfg || !g_state_lock) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    xSemaphoreTake(g_state_lock, portMAX_DELAY);
+    g_usb_trig_cfg = *cfg;
+    xSemaphoreGive(g_state_lock);
+
+    if (save_nvs) {
+        nvs_save_usb_trigger_cfg(cfg);
+    }
+    return omnia_at32_send_cmd_sync(OMNIA_CMD_USB_TRIGGER_CFG, cfg, sizeof(*cfg), 45U);
+}
+
+void omnia_at32_get_usb_trigger_cfg(omnia_usb_trigger_cfg_t *out_cfg)
+{
+    if (!out_cfg || !g_state_lock) {
+        return;
+    }
+    xSemaphoreTake(g_state_lock, portMAX_DELAY);
+    *out_cfg = g_usb_trig_cfg;
+    xSemaphoreGive(g_state_lock);
+}
+
+esp_err_t omnia_at32_sync_usb_trigger_to_at32(void)
+{
+    omnia_usb_trigger_cfg_t cfg;
+    omnia_at32_get_usb_trigger_cfg(&cfg);
+    return omnia_at32_send_cmd_sync(OMNIA_CMD_USB_TRIGGER_CFG, &cfg, sizeof(cfg), 45U);
+}
+
+esp_err_t omnia_at32_send_bt_ctrl(omnia_bt_action_t action, uint8_t param)
+{
+    const omnia_bt_ctrl_cmd_t cmd = {
+        .action = (uint8_t)action,
+        .param  = param
+    };
+    return omnia_at32_send_cmd_sync(OMNIA_CMD_BT_CTRL, &cmd, sizeof(cmd), 45U);
 }

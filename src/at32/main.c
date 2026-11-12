@@ -58,10 +58,16 @@ int main(void)
     /* 5. Запуск полнодуплексного мастера I2S2 + I2S2EXT DMA (раздаёт стабильный клок на ESP32 и ЦАП) */
     omnia_i2s_audio_init(&g_dsp_ctx);
 
-    /* 6. Бесщёлчковое открытие аналогового тракта (150 мс стабилизации ЦАПа -> Relay -> XSMT) */
+    /* 6. Запуск прямого цифрового 24-bit входа Bluetooth I2S3 Slave + ASRC + UART4 (PA15/PB3/PB5 + PA0/PA1) */
+    omnia_bt_receiver_init(48000U);
+
+    /* 7. Запуск нативной звуковой карты USB-DAC 24-bit UAC1 Async (PA11/PA12 + HICK/ACC + Триггер PB9) */
+    omnia_usb_dac_init();
+
+    /* 8. Бесщёлчковое открытие аналогового тракта (150 мс стабилизации ЦАПа -> XSMT -> Relay) */
     omnia_hw_power_sequence_boot();
 
-    /* 7. Запуск протокола USART1 DMA (921600 бод) и немедленное уведомление ESP32 о готовности */
+    /* 9. Запуск протокола USART1 DMA (921600 бод) и немедленное уведомление ESP32 о готовности */
     omnia_uart_link_init(&g_dsp_ctx);
     omnia_hw_led_set(true);
     omnia_uart_send_status_now();
@@ -71,15 +77,10 @@ int main(void)
     while (1) {
         const uint32_t now = omnia_millis();
 
-        /* Непрерывный опрос детектора +5V на гнезде USB-C для горячего автоперехода в USB-DAC */
-        bool vbus_changed = false;
-        omnia_hw_poll_usb_vbus(now, &vbus_changed);
-        if (vbus_changed) {
-            /* Мгновенно оповещаем ESP32-S3 о подключении/отключении кабеля ПК/Android/ТВ-бокса! */
-            omnia_uart_send_status_now();
-        }
-
-        /* Обработка входящих пакетов DSP/громкости/частоты и отправка пикметров VU */
+        /* Неблокирующий опрос сброса BT, Триггера +5V USB-DAC, метаданных Bluetooth и протокола ESP32 */
+        omnia_hw_poll(now);
+        omnia_usb_dac_poll(now);
+        omnia_bt_receiver_poll(now);
         omnia_uart_link_poll(now);
 
         /* Плавное мигание сервисного диода на плате AT32 (раз в 2 с в простое, быстро при аварии DC) */
