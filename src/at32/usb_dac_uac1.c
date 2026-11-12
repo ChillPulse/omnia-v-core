@@ -87,10 +87,10 @@ static const uint8_t kUsbDeviceDesc[18] = {
     1                       /* bNumConfigurations */
 };
 
-/* Полный конфигурационный дескриптор: 121 байт */
-static const uint8_t kUsbConfigDesc[121] = {
+/* Полный конфигурационный дескриптор: 122 байта */
+static const uint8_t kUsbConfigDesc[] = {
     /* Configuration Descriptor (9B) */
-    9, 0x02, 121, 0x00, 2, 1, 0, 0xC0, 50, /* Self-powered, <=100mA */
+    9, 0x02, 122, 0x00, 2, 1, 0, 0xC0, 50, /* Self-powered, <=100mA */
 
     /* Interface 0: Standard Audio Control (9B) */
     9, 0x04, 0, 0, 0, 0x01, 0x01, 0x00, 0,
@@ -132,6 +132,8 @@ static const uint8_t kUsbConfigDesc[121] = {
     3,                      /* bRefresh = 3 (каждые 8 мс) */
     0
 };
+
+_Static_assert(sizeof(kUsbConfigDesc) == 122, "UAC1 configuration descriptor length");
 
 static void write_uac_feedback_10_14(void)
 {
@@ -278,7 +280,7 @@ static void handle_ep0_setup(void)
                     const uint16_t n = build_utf16_string_desc("OMNIA 24-Bit Async DAC", sdesc, sizeof(sdesc));
                     ep0_start_in(sdesc, n, wLength);
                 } else {
-                    const uint16_t n = build_utf16_string_desc("OMNIA-ZERO-MUX-24B", sdesc, sizeof(sdesc));
+                    const uint16_t n = build_utf16_string_desc("OMNIA-24BIT-DIRECT", sdesc, sizeof(sdesc));
                     ep0_start_in(sdesc, n, wLength);
                 }
                 return;

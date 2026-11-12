@@ -1,6 +1,6 @@
 /**
  * @file    omnia_at32.h
- * @brief   Внутренние аппаратные интерфейсы прошивки AT32F403ACGU7 (Zero-Mux 24-Bit Studio DSP)
+ * @brief   Внутренние аппаратные интерфейсы прошивки AT32F403ACGU7 (24-Bit Direct Studio DSP)
  */
 
 #ifndef OMNIA_AT32_H
@@ -22,11 +22,17 @@ void     omnia_delay_ms(uint32_t ms);
 void     omnia_delay_us(uint32_t us);
 uint32_t omnia_dwt_cycles(void);
 
-/* --- anti_pop_hw.c: PB0 DAC_XSMT, PB4 AMP_MUTE, PB8 RELAY_EN, PB9 VBUS_DET, PA2 BT_CTRL --- */
+/* --- anti_pop_hw.c: Секвенсор ЦАПа и УМЗЧ (PB0 XSMT, PB2 AMP_PWR, PB4 AMP_MUTE, PB8 RELAY, PB9 VBUS) --- */
 void     omnia_hw_gpio_init(void);
 void     omnia_hw_set_dac_xsmt(bool unmute);
+void     omnia_hw_set_amp_pwr(bool power_on);
+bool     omnia_hw_is_amp_pwr_on(void);
 void     omnia_hw_set_amp_mute(bool mute_active);
 void     omnia_hw_set_relay(bool closed);
+bool     omnia_hw_amp_cfg_ready(void);
+void     omnia_hw_latch_fault(void);
+void     omnia_hw_apply_amp_ctrl_cfg(const omnia_amp_ctrl_cfg_t *cfg);
+void     omnia_hw_get_amp_ctrl_cfg(omnia_amp_ctrl_cfg_t *out_cfg);
 bool     omnia_hw_vbus_pin_raw(void);
 void     omnia_hw_bt_pulse_reset(uint32_t low_ms);
 void     omnia_hw_poll(uint32_t now_ms);

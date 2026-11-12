@@ -76,7 +76,7 @@ static void process_half_buffer(size_t half_offset_u16)
     } else if (g_source_mode == OMNIA_SRC_NONE_SILENCE) {
         memset(g_work_in_i32, 0, sizeof(g_work_in_i32));
     } else {
-        /* Прямой 24/32-битный поток от стримера ESP32-S3 GPIO5 -> PB14 (без 74HC125!) */
+        /* Прямой 24/32-битный поток от стримера ESP32-S3 GPIO5 -> PB14 */
         for (size_t f = 0; f < AUDIO_HALF_BLOCK_FRAMES; ++f) {
             const uint32_t l_u32 = ((uint32_t)rx[f * 4U]      << 16) | rx[f * 4U + 1U];
             const uint32_t r_u32 = ((uint32_t)rx[f * 4U + 2U] << 16) | rx[f * 4U + 3U];
@@ -173,7 +173,7 @@ static void start_i2s2_hardware(uint32_t fs_hz, bool mclk_out)
     gpio_cfg.gpio_pins = GPIO_PINS_12 | GPIO_PINS_13 | GPIO_PINS_15;
     gpio_init(GPIOB, &gpio_cfg);
 
-    /* PB14 = I2S2EXT_SD (Full-Duplex RX <- выход 74HC125): по спецификации Artery строго GPIO_MODE_INPUT! */
+    /* PB14 = I2S2EXT_SD (Full-Duplex RX <- напрямую от ESP32-S3 GPIO5): по спецификации Artery строго GPIO_MODE_INPUT! */
     gpio_cfg.gpio_mode = GPIO_MODE_INPUT;
     gpio_cfg.gpio_pull = GPIO_PULL_DOWN;
     gpio_cfg.gpio_pins = GPIO_PINS_14;
@@ -182,7 +182,7 @@ static void start_i2s2_hardware(uint32_t fs_hz, bool mclk_out)
     memset(g_dma_rx_u16, 0, sizeof(g_dma_rx_u16));
     memset(g_dma_tx_u16, 0, sizeof(g_dma_tx_u16));
 
-    /* DMA1 Channel 2: I2S2EXT RX (круговой приём от 74HC125) */
+    /* DMA1 Channel 2: I2S2EXT RX (круговой прямой приём 24-bit от ESP32-S3 GPIO5) */
     dma_reset(DMA1_CHANNEL2);
     dma_default_para_init(&dma_cfg);
     dma_cfg.buffer_size           = AUDIO_DMA_HALFWORDS_TOTAL;

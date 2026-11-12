@@ -294,7 +294,7 @@ static void test_farrow_asrc_24bit_sine_and_drift_servo(void)
            (unsigned)omnia_asrc_level(&asrc), max_steady_amp);
 }
 
-static void test_zero_mux_usb_trigger_and_bt_meta_protocol(void)
+static void test_usb_trigger_and_bt_meta_protocol(void)
 {
     omnia_proto_parser_t parser;
     omnia_proto_parser_init(&parser);
@@ -351,19 +351,51 @@ static void test_zero_mux_usb_trigger_and_bt_meta_protocol(void)
     memcpy(&meta_rx, parser.payload, sizeof(meta_rx));
     assert(meta_rx.codec_id == OMNIA_BT_CODEC_APTX_HD && meta_rx.bit_depth == 24U);
     assert(strcmp(meta_rx.artist, "Кино") == 0);
-    printf("[OK] Протокол Zero-Mux 24-Bit: Триггер USB-DAC (+5V) и метаданные BT aptX-HD (UTF-8) проверены!\n");
+    printf("[OK] Протокол 24-Bit Direct: Триггер USB-DAC (+5V) и метаданные BT aptX-HD (UTF-8) проверены!\n");
+}
+
+static void test_amp_control_protocol(void)
+{
+    const omnia_amp_ctrl_cfg_t cfg = {
+        .mute_pin_mode = OMNIA_AMP_MUTE_ACTIVE_LOW_OD,
+        .amp_pwr_active_high = 1, .amp_pwr_auto_standby = 1,
+        .warmup_delay_ms = 500, .mute_to_pwr_off_ms = 80
+    };
+    uint8_t wire[OMNIA_PROTO_MAX_FRAME_SIZE];
+    omnia_proto_parser_t parser;
+    omnia_proto_parser_init(&parser);
+    size_t n = omnia_proto_build_frame(wire, sizeof(wire), OMNIA_FLAG_ACK_REQ, 11,
+                                       OMNIA_CMD_AMP_CTRL_CFG, &cfg, sizeof(cfg));
+    assert(n > 0);
+    bool got = false;
+    for (size_t i = 0; i < n; ++i) if (omnia_proto_parser_feed(&parser, wire[i])) got = true;
+    assert(got && parser.hdr.cmd == 0x24 && parser.hdr.payload_len == sizeof(cfg));
+    omnia_amp_ctrl_cfg_t received;
+    memcpy(&received, parser.payload, sizeof(received));
+    assert(received.mute_pin_mode == OMNIA_AMP_MUTE_ACTIVE_LOW_OD);
+    assert(received.warmup_delay_ms == 500 && received.mute_to_pwr_off_ms == 80);
+    omnia_at32_status_t st = {0}, st2;
+    st.amp_pwr_enabled = 1; st.amp_mute_mode = OMNIA_AMP_MUTE_ACTIVE_HIGH_PP;
+    n = omnia_proto_build_frame(wire, sizeof(wire), 0, 12, OMNIA_EVT_STATUS, &st, sizeof(st));
+    omnia_proto_parser_init(&parser); got = false;
+    for (size_t i = 0; i < n; ++i) if (omnia_proto_parser_feed(&parser, wire[i])) got = true;
+    assert(got && parser.hdr.cmd == OMNIA_EVT_STATUS && parser.hdr.payload_len == sizeof(st));
+    memcpy(&st2, parser.payload, sizeof(st2));
+    assert(st2.amp_pwr_enabled == 1 && st2.amp_mute_mode == OMNIA_AMP_MUTE_ACTIVE_HIGH_PP);
+    printf("[OK] AMP_CTRL_CFG и статус усилителя: framing + CRC + поля\n");
 }
 
 int main(void)
 {
-    printf("=== Запуск модульных тестов OMNIA v2.1 (Zero-Mux 24-Bit) ===\n");
+    printf("=== Запуск модульных тестов OMNIA v2.2 (24-Bit Direct) ===\n");
     test_crc16_ccitt_vector();
     test_protocol_framing_and_noise_recovery();
     test_bit_perfect_exact_passthrough();
     test_full_dsp_aether_subbass_mono_and_limiter();
     test_room_speaker_delay_and_phase();
     test_farrow_asrc_24bit_sine_and_drift_servo();
-    test_zero_mux_usb_trigger_and_bt_meta_protocol();
-    printf("=== ВСЕ 7 НАБОРОВ ТЕСТОВ УСПЕШНО ПРОЙДЕНЫ ===\n");
+    test_usb_trigger_and_bt_meta_protocol();
+    test_amp_control_protocol();
+    printf("=== ВСЕ 8 НАБОРОВ ТЕСТОВ УСПЕШНО ПРОЙДЕНЫ ===\n");
     return 0;
 }

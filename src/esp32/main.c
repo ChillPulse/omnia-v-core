@@ -23,7 +23,7 @@ static void on_usb_vbus_hotplug(bool vbus_present, uint8_t active_usb_port)
         ESP_LOGI(TAG, "Автопереход USB «на лету»: активирован вход USB-C DAC (UAC1 Async)");
         omnia_rgb_ring_set_mode(OMNIA_LED_MODE_TUBE_AMBER, 0.30f);
     } else {
-        ESP_LOGI(TAG, "Автопереход USB «на лету»: возврат на гнездо флешки USB-A (MSC Host)");
+        ESP_LOGI(TAG, "Автопереход USB «на лету»: USB-DAC не выбран или VBUS отключён");
         omnia_rgb_ring_set_mode(OMNIA_LED_MODE_OBSIDIAN_CYAN, 0.30f);
     }
 }
@@ -73,7 +73,7 @@ void app_main(void)
     /* 2. Выделение неразрывных статических аудио-колец без фрагментации кучи */
     allocate_static_audio_pools();
 
-    /* 3. Подъём подсветки 12x WS2812 (Obsidian Cyan / Standby lub-dub) на GPIO38 */
+    /* 3. Подъём подсветки 12x WS2812 (Obsidian Cyan / Standby lub-dub) на GPIO48 */
     ESP_ERROR_CHECK(omnia_rgb_ring_init());
     omnia_rgb_ring_set_mode(OMNIA_LED_MODE_OBSIDIAN_CYAN, 0.28f);
 
@@ -101,6 +101,9 @@ void app_main(void)
 
         /* Синхронизируем сохранённую настройку Триггера звуковой карты USB-DAC из NVS */
         (void)omnia_at32_sync_usb_trigger_to_at32();
+        /* Без ранее подтверждённой конфигурации питание усилителя заблокировано. */
+        ret = omnia_at32_sync_amp_ctrl_to_at32();
+        if (ret != ESP_OK) ESP_LOGW(TAG, "Конфигурация усилителя отсутствует/не принята: %s", esp_err_to_name(ret));
 
         /* Загружаем стартовый студийный профиль AETHER + ISO 226 и комфортную громкость -24 дБ */
         (void)omnia_at32_load_default_studio_profile();

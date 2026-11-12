@@ -24,8 +24,8 @@ static const char *TAG = "omnia_i2s_slave";
 
 static i2s_chan_handle_t     g_tx_chan       = NULL;
 static omnia_static_pools_t *g_pools         = NULL;
-static SemaphoreHandle_t     g_ring_mux      = NULL;
-static SemaphoreHandle_t     g_i2s_mux       = NULL;
+static SemaphoreHandle_t     g_ring_lock      = NULL;
+static SemaphoreHandle_t     g_i2s_lock       = NULL;
 
 static volatile uint32_t     g_fs_hz         = 48000U;
 static volatile bool         g_test_tone_en  = false;
@@ -40,7 +40,7 @@ static size_t pcm_ring_pop(int32_t *dst_lr, size_t max_frames)
     }
     const size_t frame_bytes = sizeof(int32_t) * 2U;
 
-    xSemaphoreTake(g_ring_mux, portMAX_DELAY);
+    xSemaphoreTake(g_ring_lock, portMAX_DELAY);
     const size_t avail_frames = g_pools->pcm_filled / frame_bytes;
     const size_t to_read = (avail_frames < max_frames) ? avail_frames : max_frames;
     size_t bytes_rem = to_read * frame_bytes;
@@ -57,7 +57,7 @@ static size_t pcm_ring_pop(int32_t *dst_lr, size_t max_frames)
         out_p     += chunk;
         bytes_rem -= chunk;
     }
-    xSemaphoreGive(g_ring_mux);
+    xSemaphoreGive(g_ring_lock);
     return to_read;
 }
 
@@ -68,7 +68,7 @@ size_t omnia_audio_pcm_write(const int32_t *interleaved_lr, size_t stereo_frames
     }
     const size_t frame_bytes = sizeof(int32_t) * 2U;
 
-    xSemaphoreTake(g_ring_mux, portMAX_DELAY);
+    xSemaphoreTake(g_ring_lock, portMAX_DELAY);
     const size_t free_frames = (g_pools->pcm_size - g_pools->pcm_filled) / frame_bytes;
     const size_t to_write = (stereo_frames < free_frames) ? stereo_frames : free_frames;
     size_t bytes_rem = to_write * frame_bytes;
@@ -85,7 +85,7 @@ size_t omnia_audio_pcm_write(const int32_t *interleaved_lr, size_t stereo_frames
         in_p      += chunk;
         bytes_rem -= chunk;
     }
-    xSemaphoreGive(g_ring_mux);
+    xSemaphoreGive(g_ring_lock);
     return to_write;
 }
 
@@ -123,7 +123,7 @@ static void core1_i2s_feeder_task(void *arg)
         }
 
         size_t bytes_written = 0U;
-        xSemaphoreTake(g_i2s_mux, portMAX_DELAY);
+        xSemaphoreTake(g_i2s_lock, portMAX_DELAY);
         if (g_tx_chan) {
             /* Если AT32 перестраивает клок, таймаут 100 мс предотвратит зависание задачи */
             (void)i2s_channel_write(g_tx_chan,
@@ -132,7 +132,7 @@ static void core1_i2s_feeder_task(void *arg)
                                     &bytes_written,
                                     pdMS_TO_TICKS(100));
         }
-        xSemaphoreGive(g_i2s_mux);
+        xSemaphoreGive(g_i2s_lock);
 
         if (bytes_written == 0U) {
             vTaskDelay(pdMS_TO_TICKS(5));
@@ -144,9 +144,9 @@ esp_err_t omnia_audio_i2s_init(omnia_static_pools_t *pools, uint32_t initial_fs_
 {
     g_pools    = pools;
     g_fs_hz    = initial_fs_hz;
-    g_ring_mux = xSemaphoreCreateMutex();
-    g_i2s_mux  = xSemaphoreCreateMutex();
-    if (!g_ring_mux || !g_i2s_mux) {
+    g_ring_lock = xSemaphoreCreateMutex();
+    g_i2s_lock  = xSemaphoreCreateMutex();
+    if (!g_ring_lock || !g_i2s_lock) {
         return ESP_ERR_NO_MEM;
     }
 
@@ -190,7 +190,7 @@ esp_err_t omnia_audio_i2s_reconfig_clock(uint32_t new_fs_hz)
     if (!g_tx_chan) {
         return ESP_ERR_INVALID_STATE;
     }
-    xSemaphoreTake(g_i2s_mux, portMAX_DELAY);
+    xSemaphoreTake(g_i2s_lock, portMAX_DELAY);
     esp_err_t err = i2s_channel_disable(g_tx_chan);
     if (err == ESP_OK) {
         const i2s_std_clk_config_t clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(new_fs_hz);
@@ -198,7 +198,7 @@ esp_err_t omnia_audio_i2s_reconfig_clock(uint32_t new_fs_hz)
         g_fs_hz = new_fs_hz;
         (void)i2s_channel_enable(g_tx_chan);
     }
-    xSemaphoreGive(g_i2s_mux);
+    xSemaphoreGive(g_i2s_lock);
     return err;
 }
 

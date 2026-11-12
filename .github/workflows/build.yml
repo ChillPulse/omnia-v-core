@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compile & Run Studio DSP + ASRC + Zero-Mux Protocol Suite
+      - name: Compile & Run Studio DSP + ASRC + Direct Protocol Suite
         run: |
           gcc -O2 -Wall -Wextra -Werror \
             -Ishared -Isrc/at32/include \

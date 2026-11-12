@@ -14,29 +14,37 @@ void NMI_Handler(void) {}
 
 void HardFault_Handler(void)
 {
+    omnia_hw_set_amp_mute(true);
     omnia_hw_set_dac_xsmt(false);
     omnia_hw_set_relay(false);
+    omnia_hw_set_amp_pwr(false);
     while (1) {}
 }
 
 void MemManage_Handler(void)
 {
+    omnia_hw_set_amp_mute(true);
     omnia_hw_set_dac_xsmt(false);
     omnia_hw_set_relay(false);
+    omnia_hw_set_amp_pwr(false);
     while (1) {}
 }
 
 void BusFault_Handler(void)
 {
+    omnia_hw_set_amp_mute(true);
     omnia_hw_set_dac_xsmt(false);
     omnia_hw_set_relay(false);
+    omnia_hw_set_amp_pwr(false);
     while (1) {}
 }
 
 void UsageFault_Handler(void)
 {
+    omnia_hw_set_amp_mute(true);
     omnia_hw_set_dac_xsmt(false);
     omnia_hw_set_relay(false);
+    omnia_hw_set_amp_pwr(false);
     while (1) {}
 }
 
@@ -64,8 +72,8 @@ int main(void)
     /* 7. Запуск нативной звуковой карты USB-DAC 24-bit UAC1 Async (PA11/PA12 + HICK/ACC + Триггер PB9) */
     omnia_usb_dac_init();
 
-    /* 8. Бесщёлчковое открытие аналогового тракта (150 мс стабилизации ЦАПа -> XSMT -> Relay) */
-    omnia_hw_power_sequence_boot();
+    /* До настройки конкретной платы усилителя не подаём питание на K2. */
+    omnia_hw_enter_standby(true);
 
     /* 9. Запуск протокола USART1 DMA (921600 бод) и немедленное уведомление ESP32 о готовности */
     omnia_uart_link_init(&g_dsp_ctx);
@@ -82,6 +90,11 @@ int main(void)
         omnia_usb_dac_poll(now);
         omnia_bt_receiver_poll(now);
         omnia_uart_link_poll(now);
+
+        /* Это контроль цифрового DC, а не защита от постоянки на клеммах динамиков. */
+        if (g_dsp_ctx.dc_fault_tripped && !omnia_hw_is_standby()) {
+            omnia_hw_latch_fault();
+        }
 
         /* Плавное мигание сервисного диода на плате AT32 (раз в 2 с в простое, быстро при аварии DC) */
         const uint32_t blink_period = g_dsp_ctx.dc_fault_tripped ? 120U : 2000U;

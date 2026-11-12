@@ -59,11 +59,12 @@ typedef enum {
     OMNIA_CMD_SET_BYPASS_MASK       = 0x18,
     OMNIA_CMD_PRESET_OP             = 0x19,
 
-    /* Управление периферией и питанием */
-    OMNIA_CMD_USB_MUX_CTRL          = 0x20, /* В Zero-Mux режиме: настройка Триггера USB-DAC (omnia_usb_trigger_cfg_t) */
+    /* Управление периферией, триггером USB-DAC и секвенсором УМЗЧ */
+    OMNIA_CMD_USB_TRIGGER_CFG       = 0x20, /* Настройка включаемого Авто-триггера USB-DAC (+5V PB9 / SOF) */
     OMNIA_CMD_POWER_STATE           = 0x21,
     OMNIA_CMD_MCLK_CFG              = 0x22,
-    OMNIA_CMD_BT_CTRL               = 0x23, /* Управление Bluetooth BTM334 / BT401 (Play/Next/Pair/Reset) */
+    OMNIA_CMD_BT_CTRL               = 0x23, /* Управление Bluetooth BTM334 / BT401 (Play/Next/Pair/Reset)  */
+    OMNIA_CMD_AMP_CTRL_CFG          = 0x24, /* Сервисное меню: реле питания УМЗЧ PB2 + пин Mute PB4 TPA3xxx*/
 
     /* Сервисные команды и Smart Dual-OTA */
     OMNIA_CMD_OTA_BEGIN             = 0x30,
@@ -83,8 +84,6 @@ typedef enum {
     OMNIA_EVT_USB_TRIGGER           = 0x87  /* Срабатывание/отпускание триггера +5V звуковой карты USB   */
 } omnia_cmd_id_t;
 
-#define OMNIA_CMD_USB_TRIGGER_CFG       OMNIA_CMD_USB_MUX_CTRL
-
 /* Коды результата в пакетах ACK/NACK */
 typedef enum {
     OMNIA_STATUS_OK                 = 0x00,
@@ -95,7 +94,7 @@ typedef enum {
     OMNIA_STATUS_ERR_UNSUPPORTED    = 0x05
 } omnia_err_code_t;
 
-/* Цифровые источники сигнала на входах AT32F403 (Zero-Mux 24-Bit Architecture) */
+/* Цифровые источники сигнала на входах AT32F403 (24-Bit Direct Architecture) */
 typedef enum {
     OMNIA_SRC_NONE_SILENCE          = 0,
     OMNIA_SRC_ESP32_I2S             = 1,    /* Прямой вход ESP32-S3 GPIO5 -> AT32 PB14 (I2S2EXT_SD) */
@@ -126,12 +125,12 @@ typedef enum {
     OMNIA_BT_ACT_RESET_MODULE       = 6
 } omnia_bt_action_t;
 
-/* Режимы коммутатора FSUSB30MUX */
+/* Режимы работы отдельного пина PB4 (AMP_MUTE_OUT) для плат TPA3116D2 / TPA3221 — Сервисное меню */
 typedef enum {
-    OMNIA_USB_MODE_AUTO_VBUS        = 0,    /* Автопереход Host <-> UAC1 по детектору +5V на USB-C */
-    OMNIA_USB_MODE_FORCE_HOST_A     = 1,    /* Принудительно гнездо USB-A (флешка) */
-    OMNIA_USB_MODE_FORCE_DEVICE_C   = 2     /* Принудительно гнездо USB-C (USB-DAC) */
-} omnia_usb_mux_mode_t;
+    OMNIA_AMP_MUTE_ACTIVE_LOW_PP    = 0,    /* Mute = 0V (LOW),  Play = 3.3V (HIGH Push-Pull) — TPA3221 RESET / SDZ */
+    OMNIA_AMP_MUTE_ACTIVE_LOW_OD    = 1,    /* Mute = 0V (LOW),  Play = Hi-Z (Open-Drain)     — TPA3221 CMUTE (TI!) */
+    OMNIA_AMP_MUTE_ACTIVE_HIGH_PP   = 2     /* Mute = 3.3V(HIGH),Play = 0V   (LOW Push-Pull)  — TPA3116D2 пин 12 MUTE*/
+} omnia_amp_mute_mode_t;
 
 /* Состояния питания */
 typedef enum {
@@ -325,11 +324,6 @@ typedef struct {
     char     name[24];          /* Имя пресета (UTF-8, null-terminated) */
 } omnia_preset_op_t;
 
-/* 0x20 / 0x21 / 0x22: Периферия */
-typedef struct {
-    uint8_t  usb_mux_mode;      /* Устаревший 1-байтный формат обратной совместимости */
-} omnia_usb_mux_cmd_t;
-
 /* 0x20: OMNIA_CMD_USB_TRIGGER_CFG — настройка включаемой Триггер-функции звуковой карты USB-DAC */
 typedef struct {
     uint8_t  enable_auto_switch;    /* 1 = ВКЛ: автопереключение на USB-DAC при появлении +5V USB; 0 = ВЫКЛ */
@@ -341,37 +335,49 @@ typedef struct {
 } omnia_usb_trigger_cfg_t;
 
 typedef struct {
-    uint8_t  power_mode;        /* omnia_power_mode_t */
-    uint8_t  amp_relay_en;      /* 1 = включить выходное реле УМЗЧ */
+    uint8_t  power_mode;            /* omnia_power_mode_t */
+    uint8_t  amp_relay_en;          /* 1 = разрешить работу реле тракта */
 } omnia_power_cmd_t;
 
 typedef struct {
-    uint8_t  mclk_enable;       /* 0 = 3-wire I2S (PCM5102 PLL), 1 = выдавать MCLK 256fs на PA3 */
+    uint8_t  mclk_enable;           /* 0 = 3-wire I2S (PCM5102 PLL), 1 = выдавать MCLK 256fs на PA3 */
 } omnia_mclk_cmd_t;
 
 /* 0x23: OMNIA_CMD_BT_CTRL — управление Bluetooth SJR-BTM334 / BT401 */
 typedef struct {
-    uint8_t  action;            /* omnia_bt_action_t */
-    uint8_t  param;             /* Резерв / громкость AVRCP 0..127 */
+    uint8_t  action;                /* omnia_bt_action_t */
+    uint8_t  param;                 /* Резерв / громкость AVRCP 0..127 */
 } omnia_bt_ctrl_cmd_t;
+
+/* 0x24: OMNIA_CMD_AMP_CTRL_CFG — настройки Сервисного меню для реле питания УМЗЧ (PB2) и Mute TPA3116/3221 (PB4) */
+typedef struct {
+    uint8_t  mute_pin_mode;         /* omnia_amp_mute_mode_t для PB4: 0=Act-LOW PP, 1=Act-LOW OD, 2=Act-HIGH PP */
+    uint8_t  amp_pwr_active_high;   /* Полярность реле питания УМЗЧ PB2: 1 = HIGH вкл (NPN/SSR), 0 = LOW вкл    */
+    uint8_t  amp_pwr_auto_standby;  /* 1 = автоматически отключать питание УМЗЧ (PB2) в режиме Standby          */
+    uint8_t  reserved;
+    uint16_t warmup_delay_ms;       /* Задержка прогрева БП УМЗЧ от вкл. PB2 до снятия Mute PB4 (ум. 500 мс)    */
+    uint16_t mute_to_pwr_off_ms;    /* Задержка от зажатия Mute PB4 до отключения БП УМЗЧ PB2 (ум. 80 мс)       */
+} omnia_amp_ctrl_cfg_t;
 
 /* 0x80: EVT_STATUS (Периодический и событийный отчёт AT32 -> ESP32) */
 typedef struct {
-    uint32_t sample_rate_hz;    /* Текущая тактовая частота I2S2 мастера */
-    uint16_t active_dsp_mask;   /* Активные звенья DSP */
-    uint8_t  muted;             /* 1 = тракт в Mute */
-    uint8_t  bit_perfect_mode;  /* 1 = математический 1:1 24-bit Bit-Perfect активен! */
-    uint8_t  active_i2s_src;    /* Текущий открытый вход (omnia_i2s_source_t) */
-    uint8_t  usb_vbus_detected; /* 1 = обнаружено +5V / активный хост от ТВ-бокса/ПК/смартфона */
-    uint8_t  usb_active_port;   /* 1 = в данный момент выбран вход USB-DAC UAC1 */
-    uint8_t  ab_compare_bypass; /* 1 = сейчас нажато сравнение «Чистый исходник» */
-    uint8_t  cpu_load_percent;  /* Реальная загрузка ядра Cortex-M4F по счётчику тактов DWT */
-    uint8_t  dc_fault_tripped;  /* 1 = сработала аварийная защита от постоянки на выходе */
-    uint16_t clip_events;       /* Счётчик перехваченных лимитером пиков */
-    float    current_vol_db;    /* Текущее сглаженное положение громкости */
-    uint8_t  usb_streaming;     /* 1 = идёт изохронный 24-битный поток UAC1 */
-    uint8_t  bt_codec_id;       /* Активный кодек Bluetooth (omnia_bt_codec_t) */
-    uint8_t  usb_trigger_en;    /* 1 = авто-триггер USB-DAC включён пользователем */
+    uint32_t sample_rate_hz;        /* Текущая тактовая частота I2S2 мастера */
+    uint16_t active_dsp_mask;       /* Активные звенья DSP */
+    uint8_t  muted;                 /* 1 = тракт в Mute */
+    uint8_t  bit_perfect_mode;      /* 1 = математический 1:1 24-bit Bit-Perfect активен! */
+    uint8_t  active_i2s_src;        /* Текущий открытый вход (omnia_i2s_source_t) */
+    uint8_t  usb_vbus_detected;     /* 1 = обнаружено +5V / активный хост от ТВ-бокса/ПК/смартфона */
+    uint8_t  usb_active_port;       /* 1 = в данный момент выбран вход USB-DAC UAC1 */
+    uint8_t  ab_compare_bypass;     /* 1 = сейчас нажато сравнение «Чистый исходник» */
+    uint8_t  cpu_load_percent;      /* Реальная загрузка ядра Cortex-M4F по счётчику тактов DWT */
+    uint8_t  dc_fault_tripped;      /* 1 = сработала аварийная защита от постоянки на выходе */
+    uint16_t clip_events;           /* Счётчик перехваченных лимитером пиков */
+    float    current_vol_db;        /* Текущее сглаженное положение громкости */
+    uint8_t  usb_streaming;         /* 1 = идёт изохронный 24-битный поток UAC1 */
+    uint8_t  bt_codec_id;           /* Активный кодек Bluetooth (omnia_bt_codec_t) */
+    uint8_t  usb_trigger_en;        /* 1 = авто-триггер USB-DAC включён пользователем */
+    uint8_t  amp_pwr_enabled;       /* 1 = силовое реле питания УМЗЧ (PB2) сейчас включено */
+    uint8_t  amp_mute_mode;         /* Текущий сервисный режим пина PB4 (omnia_amp_mute_mode_t) */
 } omnia_at32_status_t;
 
 /* 0x86: EVT_BT_META — Метаданные трека AVRCP 1.6 и кодек Bluetooth */

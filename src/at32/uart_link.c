@@ -55,6 +55,9 @@ void omnia_uart_send_status_now(void)
     omnia_usb_trigger_cfg_t trig;
     omnia_usb_trigger_get_cfg(&trig);
 
+    omnia_amp_ctrl_cfg_t amp_cfg;
+    omnia_hw_get_amp_ctrl_cfg(&amp_cfg);
+
     omnia_at32_status_t st;
     memset(&st, 0, sizeof(st));
     st.sample_rate_hz    = omnia_i2s_get_current_fs();
@@ -72,6 +75,8 @@ void omnia_uart_send_status_now(void)
     st.usb_streaming     = omnia_usb_dac_is_streaming() ? 1U : 0U;
     st.bt_codec_id       = omnia_bt_receiver_get_codec();
     st.usb_trigger_en    = trig.enable_auto_switch;
+    st.amp_pwr_enabled   = omnia_hw_is_amp_pwr_on() ? 1U : 0U;
+    st.amp_mute_mode     = amp_cfg.mute_pin_mode;
 
     send_frame(0U, g_tx_seq++, OMNIA_EVT_STATUS, &st, sizeof(st));
 }
@@ -96,7 +101,7 @@ static void send_sys_info(uint8_t seq)
     omnia_sys_info_t info;
     memset(&info, 0, sizeof(info));
     info.fw_major          = 2U;
-    info.fw_minor          = 1U;
+    info.fw_minor          = 2U;
     info.fw_patch          = 0U;
     info.ext_flash_present = (fl && fl->present) ? fl->bus_type : 0U;
     info.sram_size_kb      = omnia_get_sram_size_kb();
@@ -257,16 +262,10 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
-    case OMNIA_CMD_USB_MUX_CTRL:
+    case OMNIA_CMD_USB_TRIGGER_CFG:
         if (len == sizeof(omnia_usb_trigger_cfg_t)) {
             omnia_usb_trigger_cfg_t cfg;
             memcpy(&cfg, pay, sizeof(cfg));
-            omnia_usb_trigger_set_cfg(&cfg);
-        } else if (len == sizeof(omnia_usb_mux_cmd_t)) {
-            const omnia_usb_mux_cmd_t *u = (const omnia_usb_mux_cmd_t *)pay;
-            omnia_usb_trigger_cfg_t cfg;
-            omnia_usb_trigger_get_cfg(&cfg);
-            cfg.enable_auto_switch = (u->usb_mux_mode == 0U) ? 1U : 0U;
             omnia_usb_trigger_set_cfg(&cfg);
         } else {
             res = OMNIA_STATUS_ERR_INVALID_ARG;
@@ -283,10 +282,32 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         }
         break;
 
+    case OMNIA_CMD_AMP_CTRL_CFG:
+        if (len == sizeof(omnia_amp_ctrl_cfg_t)) {
+            omnia_amp_ctrl_cfg_t acfg;
+            memcpy(&acfg, pay, sizeof(acfg));
+            if (omnia_hw_is_amp_pwr_on() || acfg.mute_pin_mode > OMNIA_AMP_MUTE_ACTIVE_HIGH_PP ||
+                acfg.amp_pwr_active_high != 1U || acfg.amp_pwr_auto_standby > 1U ||
+                acfg.warmup_delay_ms < 50U || acfg.warmup_delay_ms > 5000U ||
+                acfg.mute_to_pwr_off_ms < 20U || acfg.mute_to_pwr_off_ms > 2000U) {
+                res = OMNIA_STATUS_ERR_INVALID_ARG;
+            } else {
+                omnia_hw_apply_amp_ctrl_cfg(&acfg);
+            }
+        } else {
+            res = OMNIA_STATUS_ERR_INVALID_ARG;
+        }
+        break;
+
     case OMNIA_CMD_POWER_STATE:
         if (len == sizeof(omnia_power_cmd_t)) {
             const omnia_power_cmd_t *p = (const omnia_power_cmd_t *)pay;
-            omnia_hw_enter_standby(p->power_mode == OMNIA_PWR_STANDBY);
+            if (p->power_mode > OMNIA_PWR_STANDBY ||
+                (p->power_mode == OMNIA_PWR_ACTIVE && (g_dsp->dc_fault_tripped || !omnia_hw_amp_cfg_ready()))) {
+                res = OMNIA_STATUS_ERR_INVALID_ARG;
+            } else {
+                omnia_hw_enter_standby(p->power_mode == OMNIA_PWR_STANDBY);
+            }
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 

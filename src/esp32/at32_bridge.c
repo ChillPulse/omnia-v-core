@@ -50,12 +50,25 @@ static omnia_usb_trigger_cfg_t g_usb_trig_cfg = {
     .debounce_off_ms      = 800U
 };
 
-static void nvs_load_usb_trigger_cfg(void)
+/* Сохраняемые в NVS настройки Сервисного меню для реле питания УМЗЧ (PB2) и Mute TPA3116/3221 (PB4) */
+static bool g_amp_cfg_saved = false;
+static omnia_amp_ctrl_cfg_t g_amp_ctrl_cfg = {
+    .mute_pin_mode        = (uint8_t)OMNIA_AMP_MUTE_ACTIVE_LOW_PP, /* PB4: 0=Act-LOW PP, 1=Act-LOW OD, 2=Act-HIGH PP */
+    .amp_pwr_active_high  = 1U,     /* PB2: 1 = HIGH включает реле питания УМЗЧ (VT2 NPN / SSR) */
+    .amp_pwr_auto_standby = 1U,     /* 1 = обесточивать БП УМЗЧ при уходе стримера в Standby    */
+    .reserved             = 0U,
+    .warmup_delay_ms      = 500U,   /* 500 мс прогрев БП УМЗЧ при зажатом Mute до открытия PB4  */
+    .mute_to_pwr_off_ms   = 80U     /* 80 мс удержания Mute перед снятием питания с БП УМЗЧ     */
+};
+
+static void nvs_load_hw_service_cfgs(void)
 {
     nvs_handle_t h;
     if (nvs_open("omnia_cfg", NVS_READONLY, &h) == ESP_OK) {
         size_t sz = sizeof(g_usb_trig_cfg);
         (void)nvs_get_blob(h, "usb_trig", &g_usb_trig_cfg, &sz);
+        size_t asz = sizeof(g_amp_ctrl_cfg);
+        g_amp_cfg_saved = (nvs_get_blob(h, "amp_cfg", &g_amp_ctrl_cfg, &asz) == ESP_OK && asz == sizeof(g_amp_ctrl_cfg));
         nvs_close(h);
     }
 }
@@ -69,6 +82,17 @@ static void nvs_save_usb_trigger_cfg(const omnia_usb_trigger_cfg_t *cfg)
         }
         nvs_close(h);
     }
+}
+
+static esp_err_t nvs_save_amp_ctrl_cfg(const omnia_amp_ctrl_cfg_t *cfg)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open("omnia_cfg", NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    err = nvs_set_blob(h, "amp_cfg", cfg, sizeof(*cfg));
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    return err;
 }
 
 static void handle_at32_frame(const omnia_frame_hdr_t *hdr, const uint8_t *payload)
@@ -104,8 +128,8 @@ static void handle_at32_frame(const omnia_frame_hdr_t *hdr, const uint8_t *paylo
 
         if (st.usb_vbus_detected != g_prev_vbus) {
             g_prev_vbus = st.usb_vbus_detected;
-            ESP_LOGI(TAG, "Событие USB-C VBUS от AT32: vbus=%u, активный порт=%s",
-                     st.usb_vbus_detected, st.usb_active_port ? "USB-C (UAC1 DAC)" : "USB-A (MSC Flash)");
+            ESP_LOGI(TAG, "Детектор входа USB-DAC: vbus=%u, активен USB-DAC=%u",
+                     st.usb_vbus_detected, st.usb_active_port);
             if (g_vbus_cb) {
                 g_vbus_cb(st.usb_vbus_detected != 0U, st.usb_active_port);
             }
@@ -179,7 +203,7 @@ esp_err_t omnia_at32_bridge_init(omnia_vbus_event_cb_t vbus_cb)
         return ESP_ERR_NO_MEM;
     }
 
-    nvs_load_usb_trigger_cfg();
+    nvs_load_hw_service_cfgs();
 
     const uart_config_t uart_cfg = {
         .baud_rate  = OMNIA_UART_DEFAULT_BAUD,
@@ -442,6 +466,41 @@ esp_err_t omnia_at32_sync_usb_trigger_to_at32(void)
     omnia_usb_trigger_cfg_t cfg;
     omnia_at32_get_usb_trigger_cfg(&cfg);
     return omnia_at32_send_cmd_sync(OMNIA_CMD_USB_TRIGGER_CFG, &cfg, sizeof(cfg), 45U);
+}
+
+esp_err_t omnia_at32_set_amp_ctrl_cfg(const omnia_amp_ctrl_cfg_t *cfg, bool save_nvs)
+{
+    if (!cfg || !g_state_lock || cfg->mute_pin_mode > OMNIA_AMP_MUTE_ACTIVE_HIGH_PP ||
+        cfg->amp_pwr_active_high != 1U || cfg->amp_pwr_auto_standby > 1U ||
+        cfg->warmup_delay_ms < 50U || cfg->warmup_delay_ms > 5000U ||
+        cfg->mute_to_pwr_off_ms < 20U || cfg->mute_to_pwr_off_ms > 2000U) return ESP_ERR_INVALID_ARG;
+    esp_err_t err = omnia_at32_send_cmd_sync(OMNIA_CMD_AMP_CTRL_CFG, cfg, sizeof(*cfg), 100U);
+    if (err != ESP_OK) return err;
+    xSemaphoreTake(g_state_lock, portMAX_DELAY);
+    g_amp_ctrl_cfg = *cfg;
+    xSemaphoreGive(g_state_lock);
+    if (save_nvs) {
+        err = nvs_save_amp_ctrl_cfg(cfg);
+        if (err == ESP_OK) g_amp_cfg_saved = true;
+    }
+    return err;
+}
+
+void omnia_at32_get_amp_ctrl_cfg(omnia_amp_ctrl_cfg_t *out_cfg)
+{
+    if (!out_cfg || !g_state_lock) return;
+    xSemaphoreTake(g_state_lock, portMAX_DELAY);
+    *out_cfg = g_amp_ctrl_cfg;
+    xSemaphoreGive(g_state_lock);
+}
+
+esp_err_t omnia_at32_sync_amp_ctrl_to_at32(void)
+{
+    omnia_amp_ctrl_cfg_t cfg;
+    if (!g_state_lock) return ESP_ERR_INVALID_STATE;
+    if (!g_amp_cfg_saved) return ESP_ERR_NOT_FOUND;
+    omnia_at32_get_amp_ctrl_cfg(&cfg);
+    return omnia_at32_set_amp_ctrl_cfg(&cfg, false);
 }
 
 esp_err_t omnia_at32_send_bt_ctrl(omnia_bt_action_t action, uint8_t param)
