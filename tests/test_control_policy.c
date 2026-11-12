@@ -4,6 +4,14 @@
 static float from_bits(uint32_t b) { float f; memcpy(&f, &b, sizeof f); return f; }
 int main(void)
 {
+    omnia_cmd_mute_t mute = { .ramp_ms = 25, .hard_xsmt = 1 }, decoded;
+    assert(omnia_policy_decode_mute(&mute, sizeof mute, &decoded));
+    assert(decoded.ramp_ms == 25 && decoded.hard_xsmt == 1);
+    assert(omnia_policy_decode_mute(NULL, 0, &decoded) && decoded.ramp_ms == 25);
+    assert(!omnia_policy_decode_mute(&mute, 1, &decoded));
+    assert(!omnia_policy_decode_mute(&mute, sizeof mute, NULL));
+    mute.hard_xsmt = 2; assert(!omnia_policy_decode_mute(&mute, sizeof mute, &decoded));
+    mute.hard_xsmt = 1; mute.ramp_ms = 5001; assert(!omnia_policy_decode_mute(&mute, sizeof mute, &decoded));
     omnia_cmd_source_t s = { .source = OMNIA_SRC_INTERNAL_TONE, .tone_freq_hz = 1000.f, .tone_level_dbfs = -24.f };
     assert(omnia_policy_source(&s, true, false, false) == OMNIA_STATUS_OK);
     assert(omnia_policy_source(&s, false, false, false) == OMNIA_STATUS_ERR_NOT_MUTED);

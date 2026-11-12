@@ -12,6 +12,17 @@ static inline bool omnia_policy_finite(float value)
     /* Bit check survives -ffast-math, unlike isfinite(). */
     return (bits & 0x7f800000U) != 0x7f800000U;
 }
+static inline bool omnia_policy_decode_mute(const void *data, size_t len, omnia_cmd_mute_t *out)
+{
+    if (!out) return false;
+    if (len == 0U) {
+        *out = (omnia_cmd_mute_t){ .ramp_ms = 25U, .hard_xsmt = 0U };
+        return true;
+    }
+    if (!data || len != sizeof(*out)) return false;
+    memcpy(out, data, sizeof(*out));
+    return out->hard_xsmt <= 1U && out->ramp_ms <= 5000U;
+}
 static inline omnia_err_code_t omnia_policy_source(const omnia_cmd_source_t *s, bool muted,
                                                      bool bt_enabled, bool usb_enabled)
 {

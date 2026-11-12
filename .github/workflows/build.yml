@@ -20,6 +20,11 @@ jobs:
             tests/test_dsp_and_proto.c src/at32/dsp_engine.c src/at32/asrc_farrow.c \
             -lm -o tests/test_runner
           ./tests/test_runner
+          gcc -O3 -ffast-math -Wall -Wextra -Werror \
+            -Ishared -Isrc/at32/include \
+            tests/test_dsp_and_proto.c src/at32/dsp_engine.c src/at32/asrc_farrow.c \
+            -lm -o /tmp/omnia-dsp-fast
+          /tmp/omnia-dsp-fast
           python -m unittest discover -s tests -p test_bench.py -v
           python -m unittest discover -s tests -p test_project_contract.py -v
           gcc -O2 -Wall -Wextra -Werror -Isrc/esp32/include \
@@ -34,6 +39,12 @@ jobs:
           gcc -O3 -ffast-math -Wall -Wextra -Werror -Ishared -Isrc/at32/include \
             tests/test_control_policy.c -o /tmp/omnia-policy-test
           /tmp/omnia-policy-test
+          gcc -O3 -ffast-math -Wall -Wextra -Werror -Ishared -Isrc/at32/include \
+            tests/test_dsp_validation.c src/at32/dsp_validation.c -o /tmp/omnia-validation-test
+          /tmp/omnia-validation-test
+          gcc -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Ishared -Isrc/at32/include \
+            tests/test_dsp_validation.c src/at32/dsp_validation.c -o /tmp/omnia-validation-san
+          /tmp/omnia-validation-san
 
   build-at32-dsp:
     name: Build AT32F403ACGU7 Studio DSP (PlatformIO)

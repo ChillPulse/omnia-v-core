@@ -6,6 +6,7 @@
 
 #include "omnia_at32.h"
 #include "omnia_control_policy.h"
+#include "omnia_dsp_validation.h"
 #include <string.h>
 
 #define UART_RX_DMA_RING_SIZE   1024U
@@ -119,32 +120,29 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
     const uint16_t   len = hdr->payload_len;
 
     switch (hdr->cmd) {
-    case OMNIA_CMD_MUTE:
-        if (len >= sizeof(omnia_cmd_mute_t)) {
-            const omnia_cmd_mute_t *m = (const omnia_cmd_mute_t *)pay;
-            omnia_dsp_set_mute(g_dsp, true, m->ramp_ms);
-            if (m->hard_xsmt) {
-                omnia_delay_ms(m->ramp_ms > 40U ? 40U : m->ramp_ms);
-                omnia_hw_set_dac_xsmt(false);
-            }
-        } else {
-            omnia_dsp_set_mute(g_dsp, true, 25U);
+    case OMNIA_CMD_MUTE: {
+        omnia_cmd_mute_t m;
+        if (!omnia_policy_decode_mute(pay, len, &m)) {
+            res = OMNIA_STATUS_ERR_INVALID_ARG;
+            break;
+        }
+        omnia_dsp_set_mute(g_dsp, true, m.ramp_ms);
+        if (m.hard_xsmt) {
+            omnia_delay_ms(m.ramp_ms > 40U ? 40U : m.ramp_ms);
+            omnia_hw_set_dac_xsmt(false);
         }
         break;
-
-    case OMNIA_CMD_UNMUTE:
-        if (g_dsp->dc_fault_tripped || omnia_hw_has_fault()) {
+    }
+    case OMNIA_CMD_UNMUTE: {
+        omnia_cmd_mute_t m;
+        if (!omnia_policy_decode_mute(pay, len, &m) || g_dsp->dc_fault_tripped || omnia_hw_has_fault()) {
             res = OMNIA_STATUS_ERR_INVALID_ARG;
             break;
         }
         omnia_hw_set_dac_xsmt(true);
-        if (len >= sizeof(omnia_cmd_mute_t)) {
-            const omnia_cmd_mute_t *m = (const omnia_cmd_mute_t *)pay;
-            omnia_dsp_set_mute(g_dsp, false, m->ramp_ms);
-        } else {
-            omnia_dsp_set_mute(g_dsp, false, 25U);
-        }
+        omnia_dsp_set_mute(g_dsp, false, m.ramp_ms);
         break;
+    }
 
     case OMNIA_CMD_SET_VOLUME:
         if (len == sizeof(omnia_cmd_volume_t)) {
@@ -206,49 +204,49 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         break;
 
     case OMNIA_CMD_LOAD_HPF_HEADROOM:
-        if (len == sizeof(omnia_hpf_headroom_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_hpf_headroom(g_dsp, (const omnia_hpf_headroom_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_ROOM_PEQ:
-        if (len == sizeof(omnia_room_peq_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_room_peq(g_dsp, (const omnia_room_peq_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_USER_PEQ:
-        if (len == sizeof(omnia_user_peq_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_user_peq(g_dsp, (const omnia_user_peq_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_ANTI_AD:
-        if (len == sizeof(omnia_anti_ad_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_anti_ad(g_dsp, (const omnia_anti_ad_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_VBB:
-        if (len == sizeof(omnia_vbb_params_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_vbb(g_dsp, (const omnia_vbb_params_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_AETHER:
-        if (len == sizeof(omnia_aether_params_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_aether(g_dsp, (const omnia_aether_params_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_LOUDNESS:
-        if (len == sizeof(omnia_loudness_params_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_loudness(g_dsp, (const omnia_loudness_params_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_LIMITER:
-        if (len == sizeof(omnia_limiter_params_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_limiter(g_dsp, (const omnia_limiter_params_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
