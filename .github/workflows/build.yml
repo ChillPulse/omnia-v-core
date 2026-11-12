@@ -68,3 +68,17 @@ jobs:
             build/omnia-v-core.elf
             build/bootloader/bootloader.bin
             build/partition_table/partition-table.bin
+
+  build-esp32s3-platformio:
+    name: Build ESP32-S3 (PlatformIO ESP-IDF 5.x)
+    runs-on: ubuntu-latest
+    needs: dsp-unit-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PlatformIO and build
+        run: |
+          pip install --upgrade platformio
+          pio run -e esp32s3_omnia

@@ -7,3 +7,5 @@ endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(omnia-v-core)
+# LTO приложения; bootloader намеренно собирается со штатными флагами ESP-IDF.
+target_link_options(${CMAKE_PROJECT_NAME}.elf PRIVATE -flto)
