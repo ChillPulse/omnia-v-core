@@ -124,7 +124,7 @@ static void core1_i2s_feeder_task(void *arg)
         } else {
             const size_t got = pcm_ring_pop(block, I2S_FEED_CHUNK_FRAMES);
             if (got < I2S_FEED_CHUNK_FRAMES) {
-                /* При пустом буфере заполняем хвост идеальной цифровой тишиной (0 щелчков) */
+                /* При пустом буфере заполняем хвост нулями; переход может вызвать щелчок */
                 memset(&block[got * 2U], 0, (I2S_FEED_CHUNK_FRAMES - got) * 2U * sizeof(int32_t));
             }
         }

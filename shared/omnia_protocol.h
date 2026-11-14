@@ -421,7 +421,7 @@ typedef struct {
     uint8_t  fw_minor;
     uint8_t  fw_patch;
     uint8_t  ext_flash_present; /* 1 = обнаружена внешняя микросхема SPI NOR Flash на PA4..PA7 */
-    uint16_t sram_size_kb;      /* 224 (после автораскрытия EOPB0) или 96 */
+    uint16_t sram_size_kb;      /* 224 или 96 по конфигурации EOPB0; автоматическая запись отключена */
     uint32_t sysclk_hz;         /* 240000000 */
     uint32_t ext_flash_jedec;   /* Например 0xEF4016 (Winbond), 0xC84016 (GigaDevice), 0x856016 (Puya) и т.д. */
     uint32_t ext_flash_bytes;   /* Автоопределённый по SFDP/JEDEC объём внешней флешки в байтах */

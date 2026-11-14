@@ -411,11 +411,10 @@ void omnia_uart_link_poll(uint32_t now_ms)
         }
     }
 
-    /* Признак неисправности CRC: возвращаем NACK для ускоренного повтора с ESP32 */
-    if (g_parser.crc_errors > 0U) {
-        g_parser.crc_errors = 0U;
-        send_ack(g_parser.hdr.seq, g_parser.hdr.cmd, OMNIA_STATUS_ERR_CRC);
-    }
+    /* При CRC-ошибке заголовок недостоверен; после чтения нескольких кадров
+     * он может уже относиться к следующему валидному кадру. Не посылать NACK
+     * по такому seq/cmd: отправитель обнаруживает потерю ответа по тайм-ауту. */
+    g_parser.crc_errors = 0U;
 
     /* Пиковые уровни для аналоговых стрелочных индикаторов VU (25 Гц = каждые 40 мс) */
     if ((now_ms - g_last_meter_ms) >= 40U && g_dsp && !g_dsp->muted) {

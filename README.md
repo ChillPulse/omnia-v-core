@@ -4,7 +4,7 @@
 
 > **Начинайте с [пошагового руководства](docs/START_HERE_RU.md) и [справочных сигналов стенда](docs/OMNIA_WIRING_STAGE1_CORE.png).** Прошивки и утилита ещё не проверены на вашей аппаратуре. Не подключайте усилитель, K2 и динамики. Рисунки сигналов и управления усилителем не являются проверенными монтажными схемами. Сервисное меню, дисплей, полноценное ИК-обучение с действиями, приложения, PWA и большинство функций медиаплеера пока не готовы. Bluetooth отложен до фото; код Bluetooth и USB Audio по умолчанию выключен. Автоматического изменения USD/option bytes больше нет.
 
-[План и критерии приёмки](docs/ROADMAP_AND_ACCEPTANCE_RU.md) · [BOM и открытые решения](docs/BOM_AND_DECISIONS_RU.md) · [Проверка команд DSP](docs/DSP_CONTROL_VALIDATION_RU.md)
+[План и критерии приёмки](docs/ROADMAP_AND_ACCEPTANCE_RU.md) · [BOM и открытые решения](docs/BOM_AND_DECISIONS_RU.md) · [Проверка команд DSP](docs/DSP_CONTROL_VALIDATION_RU.md) · [Карта проверок и протокол опыта](docs/BENCH_VERIFICATION_RECORD_RU.md)
 
 ## Предусмотренная архитектура
 

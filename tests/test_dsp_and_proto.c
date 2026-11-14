@@ -86,6 +86,18 @@ static void test_protocol_framing_and_noise_recovery(void)
     }
     assert(!got_valid);
     assert(parser.crc_errors == 1U);
+
+    /* Следующий валидный кадр перезаписывает hdr, хотя счётчик CRC ещё не сброшен.
+     * Поэтому по hdr после полного чтения нельзя отправлять NACK за прошлую ошибку. */
+    uint8_t next[32];
+    const size_t next_len = omnia_proto_build_frame(next, sizeof(next), OMNIA_FLAG_ACK_REQ,
+                                                    77U, OMNIA_CMD_PING, NULL, 0U);
+    bool next_ok = false;
+    for (size_t i = 0; i < next_len; ++i) {
+        if (omnia_proto_parser_feed(&parser, next[i])) next_ok = true;
+    }
+    assert(next_ok && parser.crc_errors == 1U);
+    assert(parser.hdr.seq == 77U && parser.hdr.cmd == OMNIA_CMD_PING);
     printf("[OK] Протокол OMNIA v2: синхронизация после помех и отлов битого CRC проверены\n");
 }
 

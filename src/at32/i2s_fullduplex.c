@@ -1,7 +1,7 @@
 /**
  * @file    i2s_fullduplex.c
  * @brief   Полнодуплексный аудио-мастер I2S2 + I2S2EXT (32-bit Phillips, круговой Ping-Pong DMA)
- *          на AT32F403ACGU7 с бесщёлчковой перестройкой Fs, встроенным тестовым синусом и замером % CPU.
+ *          на AT32F403ACGU7 с экспериментальной перестройкой Fs, тестовым синусом и замером % CPU.
  */
 
 #include "omnia_at32.h"
@@ -86,7 +86,7 @@ static void process_half_buffer(size_t half_offset_u16)
         }
     }
 
-    /* Плавный бесщёлчковый fade-in (2.7 мс) при переключении между источниками */
+    /* Планируемый fade-in (2.7 мс) при переключении источников; безглитчевая работа не подтверждена */
     if (g_src_fade_gain < 1.0f) {
         float fg = g_src_fade_gain;
         for (size_t f = 0; f < AUDIO_HALF_BLOCK_FRAMES; ++f) {
@@ -208,7 +208,7 @@ static void start_i2s2_hardware(uint32_t fs_hz, bool mclk_out)
     dma_flexible_config(DMA1, FLEX_CHANNEL1, DMA_FLEXIBLE_SPI2_TX);
 
     dma_interrupt_enable(DMA1_CHANNEL1, DMA_HDT_INT | DMA_FDT_INT, TRUE);
-    nvic_irq_enable(DMA1_Channel1_IRQn, 0, 0); /* Высший приоритет прерывания в системе = 0 джиттера! */
+    nvic_irq_enable(DMA1_Channel1_IRQn, 0, 0); /* Высший приоритет; задержки и джиттер необходимо измерить */
 
     /* Конфигурация I2S2 Master TX + I2S2EXT Slave RX (32-bit Phillips) */
     spi_i2s_reset(SPI2);

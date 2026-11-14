@@ -23,7 +23,7 @@ static void stop_tone(void)
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "MUTE не подтверждён (%s): отключите питание, XSMT мог остаться включённым!", esp_err_to_name(err));
     } else {
-        ESP_LOGI(TAG, "Тон остановлен; AT32 подтвердил MUTE и XSMT LOW.");
+        ESP_LOGI(TAG, "Генератор отключён; AT32 подтвердил команду MUTE. Физический уровень XSMT требует измерения.");
     }
 }
 

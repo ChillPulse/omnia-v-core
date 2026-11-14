@@ -1,11 +1,12 @@
 /**
  * @file    at32_bridge.c
  * @brief   Драйвер мастера протокола OMNIA v2 (ESP32-S3 UART1 GPIO7/8 @ 921600 бод):
- *          гарантированная доставка с подтверждением ACK, до 3 повторов при ошибке CRC,
- *          бесщёлчковое переключение Fs (Policy 1) и приём телеметрии VU / VBUS от AT32F403.
+ *          ACK и до 3 попыток при тайм-ауте/ошибке CRC; доставка не гарантирована,
+ *          экспериментальную смену Fs и приём телеметрии VU / VBUS от AT32F403.
  */
 
 #include "omnia_esp32.h"
+#include "omnia_bridge_protocol.h"
 #include <string.h>
 #include "driver/uart.h"
 #include "driver/gpio.h"
@@ -101,16 +102,17 @@ static void handle_at32_frame(const omnia_frame_hdr_t *hdr, const uint8_t *paylo
 {
     const uint8_t flags = OMNIA_GET_FLAGS(hdr->ver_flags);
 
-    if (hdr->cmd == OMNIA_EVT_ACK_NACK && hdr->payload_len >= sizeof(omnia_ack_payload_t)) {
-        const omnia_ack_payload_t *ack = (const omnia_ack_payload_t *)payload;
-        if (hdr->seq == g_wait_seq && ack->acked_cmd == g_wait_cmd) {
-            g_last_ack_code = (flags & OMNIA_FLAG_IS_NACK) ? ack->status_code : OMNIA_STATUS_OK;
+    if (hdr->cmd == OMNIA_EVT_ACK_NACK) {
+        uint8_t result;
+        if (omnia_bridge_decode_ack(hdr, payload, g_wait_seq, g_wait_cmd, &result)) {
+            g_last_ack_code = result;
             xSemaphoreGive(g_ack_sem);
         }
         return;
     }
 
-    if (hdr->cmd == OMNIA_EVT_SYS_INFO && hdr->payload_len == sizeof(omnia_sys_info_t)) {
+    if (hdr->cmd == OMNIA_EVT_SYS_INFO && flags == OMNIA_FLAG_IS_ACK &&
+        hdr->seq == g_wait_seq && hdr->payload_len == sizeof(omnia_sys_info_t)) {
         xSemaphoreTake(g_state_lock, portMAX_DELAY);
         memcpy(&g_cached_info, payload, sizeof(g_cached_info));
         xSemaphoreGive(g_state_lock);
@@ -120,7 +122,7 @@ static void handle_at32_frame(const omnia_frame_hdr_t *hdr, const uint8_t *paylo
         return;
     }
 
-    if (hdr->cmd == OMNIA_EVT_STATUS && hdr->payload_len == sizeof(omnia_at32_status_t)) {
+    if (hdr->cmd == OMNIA_EVT_STATUS && flags == 0U && hdr->payload_len == sizeof(omnia_at32_status_t)) {
         omnia_at32_status_t st;
         memcpy(&st, payload, sizeof(st));
 
@@ -312,7 +314,8 @@ esp_err_t omnia_at32_set_volume(float vol_db, float replaygain_db, float balance
 }
 
 /**
- * @brief  Атомарный бесщёлчковый протокол смены сетки частот 44.1 <-> 48 кГц (ТЗ v2.0 Раздел 4.2):
+ * @brief  Экспериментальная последовательность смены частоты 44.1 <-> 48 кГц.
+ *         Имя API историческое: атомарность и бесщёлчковость не обеспечены и не подтверждены:
  *         1) Команда мягкого MUTE на AT32 + закрытие XSMT
  *         2) Переключение мастера I2S2 на AT32 на новую частоту
  *         3) Перенастройка ведомого I2S Slave TX на ESP32-S3
