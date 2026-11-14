@@ -38,6 +38,13 @@ class ProjectContract(unittest.TestCase):
         for pin in (0, 1, 2, 3, 4, 5, 6, 7, 8, 19, 20, 40, 45, 46, 48):
             self.assertIn(pin, pins)
 
+    def test_unverified_automatic_sample_rate_switch_disabled(self):
+        text = (ROOT / 'src/esp32/at32_bridge.c').read_text()
+        body = text.split('esp_err_t omnia_at32_switch_sample_rate_atomic(', 1)[1].split('\n}', 1)[0]
+        self.assertIn('return ESP_ERR_NOT_SUPPORTED;', body)
+        self.assertNotIn('OMNIA_CMD_UNMUTE', body)
+        self.assertNotIn('OMNIA_CMD_SET_FS', body)
+
     def test_legacy_and_deferred_default_off(self):
         text = (ROOT / 'src/at32/include/omnia_at32.h').read_text()
         for feature in ('BT', 'USB_DAC'):

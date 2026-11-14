@@ -506,6 +506,20 @@ static inline void omnia_proto_parser_init(omnia_proto_parser_t *p)
     }
 }
 
+/* Reset an unfinished frame after a caller-observed processing gap. Unsigned
+ * subtraction handles one uint32 clock wrap. The caller must track the last
+ * processed byte time; this does not measure the actual wire arrival time. */
+static inline bool omnia_proto_parser_expire(omnia_proto_parser_t *p, uint32_t now_ms,
+                                             uint32_t last_byte_ms, uint32_t timeout_ms)
+{
+    if (!p || timeout_ms == 0U || p->state == OMNIA_RX_SYNC_0 ||
+        (uint32_t)(now_ms - last_byte_ms) < timeout_ms) return false;
+    p->state = OMNIA_RX_SYNC_0;
+    p->hdr_idx = 0U;
+    p->pay_idx = 0U;
+    return true;
+}
+
 /**
  * @brief  Подаёт 1 принятый байт в парсер.
  * @return true, если только что успешно принят и проверен по CRC16 целый кадр

@@ -110,6 +110,30 @@ static void test_protocol_framing_and_noise_recovery(void)
     printf("[OK] Протокол OMNIA v2: синхронизация после помех и отлов битого CRC проверены\n");
 }
 
+static void test_parser_partial_timeout(void)
+{
+    omnia_proto_parser_t parser;
+    omnia_proto_parser_init(&parser);
+    assert(!omnia_proto_parser_feed(&parser, 0x55U));
+    assert(parser.state == OMNIA_RX_SYNC_1);
+    assert(!omnia_proto_parser_expire(&parser, 349U, 100U, 250U));
+    assert(omnia_proto_parser_expire(&parser, 350U, 100U, 250U));
+    assert(parser.state == OMNIA_RX_SYNC_0);
+    assert(!omnia_proto_parser_expire(&parser, 500U, 100U, 250U));
+    uint8_t frame[32];
+    const size_t n = omnia_proto_build_frame(frame, sizeof(frame), OMNIA_FLAG_ACK_REQ,
+                                              43U, OMNIA_CMD_PING, NULL, 0U);
+    for (size_t i = 0; i < 5U; ++i) assert(!omnia_proto_parser_feed(&parser, frame[i]));
+    assert(!omnia_proto_parser_expire(&parser, 10U, UINT32_MAX - 100U, 250U));
+    assert(omnia_proto_parser_expire(&parser, 150U, UINT32_MAX - 100U, 250U));
+    bool got = false;
+    for (size_t i = 0; i < n; ++i) if (omnia_proto_parser_feed(&parser, frame[i])) got = true;
+    assert(got && parser.hdr.seq == 43U && parser.hdr.cmd == OMNIA_CMD_PING);
+    assert(parser.frames_ok == 1U && parser.crc_errors == 0U);
+    assert(!omnia_proto_parser_expire(NULL, 1U, 0U, 1U));
+    printf("[OK] Частичный кадр: тайм-аут обработки и переполнение часов\n");
+}
+
 static void test_bit_perfect_exact_passthrough(void)
 {
     static omnia_dsp_delay_arena_t arena;
@@ -411,6 +435,7 @@ int main(void)
     printf("=== Запуск модульных тестов OMNIA v2.2 (24-Bit Direct) ===\n");
     test_crc16_ccitt_vector();
     test_protocol_framing_and_noise_recovery();
+    test_parser_partial_timeout();
     test_bit_perfect_exact_passthrough();
     test_full_dsp_aether_subbass_mono_and_limiter();
     test_room_speaker_delay_and_phase();

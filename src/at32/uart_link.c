@@ -10,6 +10,7 @@
 #include <string.h>
 
 #define UART_RX_DMA_RING_SIZE   1024U
+#define UART_RX_PARTIAL_TIMEOUT_MS 250U /* experimental; measured processing gap, not wire timing */
 
 static uint8_t              g_uart_rx_ring[UART_RX_DMA_RING_SIZE];
 static uint16_t             g_uart_rx_rd_idx = 0U;
@@ -17,6 +18,8 @@ static uint8_t              g_uart_tx_buf[OMNIA_PROTO_MAX_FRAME_SIZE];
 static uint8_t              g_tx_seq         = 0U;
 static uint32_t             g_last_hb_ms     = 0U;
 static uint32_t             g_last_meter_ms  = 0U;
+static uint32_t             g_last_rx_byte_ms = 0U;
+static bool                 g_have_rx_byte = false;
 
 static omnia_proto_parser_t g_parser;
 static omnia_dsp_ctx_t     *g_dsp            = NULL;
@@ -395,6 +398,7 @@ void omnia_uart_link_init(omnia_dsp_ctx_t *dsp_ctx)
     usart_enable(USART1, TRUE);
 
     g_uart_rx_rd_idx = 0U;
+    g_have_rx_byte = false;
 }
 
 void omnia_uart_link_poll(uint32_t now_ms)
@@ -402,6 +406,13 @@ void omnia_uart_link_poll(uint32_t now_ms)
     /* Вычитываем все новые байты из кругового DMA-кольца USART1 */
     /* При нулевом счётчике DMA позиция уже равна началу кольца, а не 1024. */
     const uint16_t wr_idx = (uint16_t)((UART_RX_DMA_RING_SIZE - dma_data_number_get(DMA1_CHANNEL5)) % UART_RX_DMA_RING_SIZE);
+    if (g_have_rx_byte) {
+        (void)omnia_proto_parser_expire(&g_parser, now_ms, g_last_rx_byte_ms, UART_RX_PARTIAL_TIMEOUT_MS);
+    }
+    if (g_uart_rx_rd_idx != wr_idx) {
+        g_last_rx_byte_ms = now_ms;
+        g_have_rx_byte = true;
+    }
     while (g_uart_rx_rd_idx != wr_idx) {
         const uint8_t b = g_uart_rx_ring[g_uart_rx_rd_idx];
         g_uart_rx_rd_idx = (uint16_t)((g_uart_rx_rd_idx + 1U) % UART_RX_DMA_RING_SIZE);

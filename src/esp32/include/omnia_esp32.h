@@ -41,6 +41,7 @@ esp_err_t omnia_at32_bridge_init(omnia_vbus_event_cb_t vbus_cb);
 esp_err_t omnia_at32_send_cmd_sync(uint8_t cmd, const void *payload, uint16_t len, uint32_t timeout_ms);
 esp_err_t omnia_at32_query_sys_info(omnia_sys_info_t *out_info, uint32_t timeout_ms);
 esp_err_t omnia_at32_set_volume(float vol_db, float replaygain_db, float balance, uint16_t ramp_ms);
+/* Disabled: not yet atomic/safe; always ESP_ERR_NOT_SUPPORTED. */
 esp_err_t omnia_at32_switch_sample_rate_atomic(uint32_t new_fs_hz);
 esp_err_t omnia_at32_set_bit_perfect(bool bit_perfect_direct);
 esp_err_t omnia_at32_set_ab_compare(bool bypass_compare);
