@@ -70,6 +70,19 @@ class ProjectContract(unittest.TestCase):
             self.assertIn('Покрытие:', matrix)
             self.assertIn('не', matrix.lower())
 
+    def test_project_github_board_reference_snapshots(self):
+        snapshots = {
+            'OMNIA_MASTER_GITHUB_MAIN_7ab8b0c.md': '32e430f226557dce731616d407bc5de58ab88d619bc9847948a15ae1a21e2661',
+            'OMNIA_MASTER_GITHUB_WIP_ffc6859.md': '6226655b0381b24decb1e9110946de0ea73b3b4b090bdccbd30772c97bc1f2e1',
+        }
+        for name, expected in snapshots.items():
+            data = (ROOT / 'docs/reference' / name).read_bytes()
+            self.assertEqual(hashlib.sha256(data).hexdigest(), expected)
+        boards = (ROOT / 'docs/BOARDS_FROM_GITHUB_RU.md').read_text()
+        for name in snapshots:
+            self.assertIn(name, boards)
+        self.assertIn('не менять улучшенное ТЗ', boards)
+
     def test_legacy_and_deferred_default_off(self):
         text = (ROOT / 'src/at32/include/omnia_at32.h').read_text()
         for feature in ('BT', 'USB_DAC'):
