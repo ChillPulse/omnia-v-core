@@ -38,6 +38,11 @@ class ProjectContract(unittest.TestCase):
         for pin in (0, 1, 2, 3, 4, 5, 6, 7, 8, 19, 20, 40, 45, 46, 48):
             self.assertIn(pin, pins)
 
+    def test_selected_stlink_upload_profile(self):
+        text = (ROOT / 'platformio.ini').read_text()
+        at32 = text.split('[env:at32f403_dsp]', 1)[1]
+        self.assertRegex(at32, r'(?m)^upload_protocol\s*=\s*stlink\s*$')
+
     def test_unverified_automatic_sample_rate_switch_disabled(self):
         text = (ROOT / 'src/esp32/at32_bridge.c').read_text()
         body = text.split('esp_err_t omnia_at32_switch_sample_rate_atomic(', 1)[1].split('\n}', 1)[0]

@@ -7,7 +7,8 @@
  *  КЛЮЧЕВЫЕ ОСОБЕННОСТИ РАЗВОДКИ v2.2:
  *    - Полный отказ от внешних мультиплексоров: каждый интерфейс подключён к своему выделенному
  *      аппаратному контроллеру МК напрямую (сквозной 24-битный тракт в 32-битных слотах I2S).
- *    - Выделенный порт USB-A Host MSC на ESP32-S3 (GPIO19/20) навсегда под флешки и SSD.
+ *    - Планируемый USB Host MSC ESP32-S3 на GPIO19/20; штатный USB-C YD уже на этих линиях,
+ *      топология внешнего USB-A, VBUS и защита требуют отдельной разработки.
  *    - Выделенный порт USB-DAC UAC1 Async 24-bit (48 / 44.1 кГц) на AT32F403 (PA11/PA12)
  *      с включаемым Авто-триггером +5V (PB9 + контроль пакетов USB SOF).
  *    - Прямой 24-битный вход Bluetooth (SJR-BTM334 QCC3034 aptX-HD / BT401) на порту I2S3 Slave RX
@@ -32,8 +33,8 @@
  * ========================================================================== */
 
 /* --- Выделенный порт USB-A Host MSC (флешки / внешние диски FAT32/exFAT) --- */
-#define OMNIA_ESP_USB_DM_GPIO           19      /* Гнездо USB-A pin 2 (D-) напрямую */
-#define OMNIA_ESP_USB_DP_GPIO           20      /* Гнездо USB-A pin 3 (D+) напрямую */
+#define OMNIA_ESP_USB_DM_GPIO           19      /* USB D-; уже подключён к штатному USB-C YD */
+#define OMNIA_ESP_USB_DP_GPIO           20      /* USB D+; отдельный USB-A требует решения топологии */
 
 /* --- Экран TENSTAR 2.8" ST7789 (параллельная шина 8080 8-bit I80 LCD_CAM DMA) --- */
 #define OMNIA_ESP_LCD_D0_GPIO           9
@@ -73,7 +74,7 @@
 #define OMNIA_ESP_IR_RX_GPIO            40      /* VS1838B OUT (питание 3.3 В) -> RMT RX */
 #define OMNIA_ESP_I2C_SDA_GPIO          2       /* Датчик внешней освещённости BH1750 (адрес 0x23) */
 #define OMNIA_ESP_I2C_SCL_GPIO          39      /* Подтяжка 4.7 кОм к +3.3V на SDA и SCL */
-#define OMNIA_ESP_RGB_RING_GPIO         48      /* RMT TX -> 5V буфер уровня -> 330 Ом -> 12x WS2812B */
+#define OMNIA_ESP_RGB_RING_GPIO         48      /* YD: встроенный RGB через перемычку; внешний буфер и кольцо спроектировать */
 #define OMNIA_RGB_RING_LED_COUNT        12      /* Число адресных светодиодов кольца подсветки */
 
 /* Заводской порт прошивки и логов ESP-IDF: UART0 (GPIO43 TX, GPIO44 RX) — неприкосновенен! */
