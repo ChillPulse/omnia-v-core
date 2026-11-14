@@ -1,5 +1,6 @@
 """Small consistency checks for the published configuration, not a board test."""
 import pathlib
+import hashlib
 import re
 import unittest
 
@@ -49,6 +50,15 @@ class ProjectContract(unittest.TestCase):
         self.assertIn('return ESP_ERR_NOT_SUPPORTED;', body)
         self.assertNotIn('OMNIA_CMD_UNMUTE', body)
         self.assertNotIn('OMNIA_CMD_SET_FS', body)
+
+    def test_original_spec_snapshot_and_nfs_target_retained(self):
+        original = (ROOT / 'docs/reference/ORIGINAL_MASTER_6aa2707.md').read_bytes()
+        self.assertEqual(hashlib.sha256(original).hexdigest(),
+                         '1813ba41974c622afd6449bfce75778c46c58f3e1d3d486e2358f88445606538')
+        current = (ROOT / 'docs/OMNIA_MASTER_SPEC_v2.0.md').read_text()
+        self.assertIn('SMB / NFS', current)
+        audit = (ROOT / 'docs/REQUIREMENTS_AUDIT_RU.md').read_text()
+        self.assertIn('AUD-002', audit)  # original 192 kHz remains explicitly unresolved
 
     def test_legacy_and_deferred_default_off(self):
         text = (ROOT / 'src/at32/include/omnia_at32.h').read_text()
