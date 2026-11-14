@@ -25,6 +25,11 @@ jobs:
             tests/test_dsp_and_proto.c src/at32/dsp_engine.c src/at32/asrc_farrow.c \
             -lm -o /tmp/omnia-dsp-fast
           /tmp/omnia-dsp-fast
+          gcc -O2 -Wall -Wextra -Werror -Ishared tests/test_protocol_stream.c -o /tmp/omnia-stream-test
+          /tmp/omnia-stream-test
+          gcc -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Ishared \
+            tests/test_protocol_stream.c -o /tmp/omnia-stream-san
+          /tmp/omnia-stream-san
           python -m unittest discover -s tests -p test_bench.py -v
           python -m unittest discover -s tests -p test_project_contract.py -v
           python -m unittest discover -s tests -p test_at32_sdk_lock.py -v

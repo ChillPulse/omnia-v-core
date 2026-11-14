@@ -60,6 +60,16 @@ class ProjectContract(unittest.TestCase):
         audit = (ROOT / 'docs/REQUIREMENTS_AUDIT_RU.md').read_text()
         self.assertIn('AUD-002', audit)  # original 192 kHz remains explicitly unresolved
 
+    def test_audit_preserves_source_specific_goals(self):
+        spec = (ROOT / 'docs/OMNIA_MASTER_SPEC_v2.0.md').read_text()
+        for requirement in ('FAT32 и exFAT', 'HE-AAC v1/v2', 'ALAC 16/44,1',
+                            '15 пользовательских полос', '1.5 МиБ', 'NFS'):
+            self.assertIn(requirement, spec)
+        for part in (1, 2):
+            matrix = (ROOT / f'docs/REQUIREMENTS_MATRIX_PART{part}_RU.md').read_text()
+            self.assertIn('Покрытие:', matrix)
+            self.assertIn('не', matrix.lower())
+
     def test_legacy_and_deferred_default_off(self):
         text = (ROOT / 'src/at32/include/omnia_at32.h').read_text()
         for feature in ('BT', 'USB_DAC'):
