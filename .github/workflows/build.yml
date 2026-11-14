@@ -27,6 +27,7 @@ jobs:
           /tmp/omnia-dsp-fast
           python -m unittest discover -s tests -p test_bench.py -v
           python -m unittest discover -s tests -p test_project_contract.py -v
+          python -m unittest discover -s tests -p test_at32_sdk_lock.py -v
           gcc -O2 -Wall -Wextra -Werror -Isrc/esp32/include \
             tests/test_bench_command.c src/esp32/bench_command.c -o /tmp/omnia-bench-test
           /tmp/omnia-bench-test

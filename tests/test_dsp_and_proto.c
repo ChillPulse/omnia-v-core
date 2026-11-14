@@ -51,6 +51,15 @@ static void test_protocol_framing_and_noise_recovery(void)
         .crossfeed_fc_hz  = 700.0f
     };
 
+    /* Нельзя выдавать кадр с ненулевой длиной и NULL: это ранее включало
+     * в отправку неинициализированное содержимое выходного буфера. */
+    memset(wire, 0xA5, sizeof(wire));
+    assert(omnia_proto_build_frame(wire, sizeof(wire), 0U, 1U,
+                                   OMNIA_CMD_PING, NULL, 1U) == 0U);
+    for (size_t i = 0; i < sizeof(wire); ++i) assert(wire[i] == 0xA5U);
+    assert(omnia_proto_build_frame(wire, sizeof(wire), 0U, 1U,
+                                   OMNIA_CMD_PING, NULL, 0U) == 9U);
+
     /* Мусорные байты на линии перед валидным кадром */
     wire[0] = 0x13U;
     wire[1] = 0x55U; /* Ложная полу-преамбула */

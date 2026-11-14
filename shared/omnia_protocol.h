@@ -452,7 +452,8 @@ static inline size_t omnia_proto_build_frame(
     uint16_t       payload_len)
 {
     const size_t total = (size_t)OMNIA_PROTO_HEADER_SIZE + payload_len + OMNIA_PROTO_CRC_SIZE;
-    if (!out_buf || payload_len > OMNIA_PROTO_MAX_PAYLOAD || out_buf_cap < total) {
+    if (!out_buf || (payload_len > 0U && !payload) ||
+        payload_len > OMNIA_PROTO_MAX_PAYLOAD || out_buf_cap < total) {
         return 0;
     }
 
