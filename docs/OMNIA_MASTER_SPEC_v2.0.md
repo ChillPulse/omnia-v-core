@@ -30,6 +30,7 @@
 ## 0. Первоисточники и строгая инженерная философия
 
 ### 0.1. Базовые референсы
+* **Рабочий опыт пользователя (STM32 master + ё-радио slave + PCM5102):** [анализ прототипа и применение в Direct](WORKING_STM32_YORADIO_REFERENCE_RU.md). RATE/MUTE там работали по GPIO; старые пины и 16-битный HAL не переносить без адаптации.
 * **Основной концепт OMNIA (v-core):** `https://github.com/ChillPulse/Info-spravka/blob/main/Master%20spec%20OMNIA%20(v-core)`
 * **Вспомогательная кодовая база и референсы:**
   * `https://github.com/ChillPulse/Youradio_Omnia_ESP32S3`
