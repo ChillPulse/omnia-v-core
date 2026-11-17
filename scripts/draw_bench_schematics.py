@@ -1,3 +1,5 @@
+# АРХИВ: генератор старых, НЕ пригодных для монтажа рисунков.
+# Актуальные проектные листы: scripts/generate_schemes.py и docs/SCHEMES_INDEX_RU.md.
 #!/usr/bin/env python3
 """Generate current Russian bench wiring diagrams; requires Pillow."""
 from PIL import Image, ImageDraw, ImageFont
@@ -59,7 +61,7 @@ def first():
     txt(d, (785, 1160), 'Каждая плата получает правильное питание отдельно; GND общий.\nSWD: PA13 ↔ SWDIO, PA14 ↔ SWCLK, GND и Vref 3,3 В.', 25)
     txt(d, (55, 1300), 'Сначала отдельно проверить платы и SRAM. Затем UART → I²S → ЦАП.\nРазводка модулей и питание DAC требуют проверки; не соединять 5 В источники наугад.', 27, RED, True)
     txt(d, (55, 1430), 'Рис. 1  •  Пошаговые инструкции: docs/START_HERE_RU.md  •  Не испытано на реальном устройстве', 22, GREY)
-    im.save(ROOT/'docs/OMNIA_WIRING_STAGE1_CORE.png')
+    im.save(ROOT/'docs/archive/OMNIA_WIRING_STAGE1_CORE_LEGACY_REGENERATED.png')
 
 
 def second():
@@ -76,7 +78,7 @@ def second():
     txt(d, (1130, 790), 'TPA3116 SDZ       MUTE = LOW\nTPA3116 MUTE     MUTE = HIGH\nTPA3221 RESET   MUTE = LOW\nTPA3221 CMUTE  LOW / высокое сопротивление\n\nCMUTE: штатный 33 нФ; не ставить 10 кОм\nна землю. Согласование и защита от обратного\nпитания требуют расчёта под конкретную плату.', 25)
     txt(d, (55, 1230), 'Сеть 230 В и коммутируемые контакты K2 здесь намеренно не показаны.\nДля AC/DC нагрузки учитываются пусковой ток, изоляция, защита и номиналы контактов.', 27, RED, True)
     txt(d, (55, 1430), 'Рис. 2  •  Подробные ограничения: docs/AMP_CONTROL_SAFETY.md  •  Нужны фото платы УМЗЧ', 22, GREY)
-    im.save(ROOT/'docs/OMNIA_SCHEMATIC_IC_TRANSISTORS.png')
+    im.save(ROOT/'docs/archive/OMNIA_SCHEMATIC_IC_TRANSISTORS_LEGACY_REGENERATED.png')
 
 
 if __name__ == '__main__':

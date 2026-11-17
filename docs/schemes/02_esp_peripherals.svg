@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="1190.88pt" height="841.68pt" viewBox="0 0 1190.88 841.68" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-17T20:58:37.483104</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 841.68
+L 1190.88 841.68
+L 1190.88 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 0 58.9176
+L 1190.88 58.9176
+L 1190.88 -0
+L 0 -0
+z
+" clip-path="url(#p0fd3210f80)" style="fill: #143a58; stroke: #143a58; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 39.89448 374.12676
+L 579.36312 374.12676
+Q 588.89016 374.12676 588.89016 367.39332
+L 588.89016 112.36428
+Q 588.89016 105.63084 579.36312 105.63084
+L 39.89448 105.63084
+Q 30.36744 105.63084 30.36744 112.36428
+L 30.36744 367.39332
+Q 30.36744 374.12676 39.89448 374.12676
+z
+" clip-path="url(#p0fd3210f80)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 611.51688 374.12676
+L 1150.98552 374.12676
+Q 1160.51256 374.12676 1160.51256 367.39332
+L 1160.51256 112.36428
+Q 1160.51256 105.63084 1150.98552 105.63084
+L 611.51688 105.63084
+Q 601.98984 105.63084 601.98984 112.36428
+L 601.98984 367.39332
+Q 601.98984 374.12676 611.51688 374.12676
+z
+" clip-path="url(#p0fd3210f80)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 39.89448 601.38036
+L 579.36312 601.38036
+Q 588.89016 601.38036 588.89016 594.64692
+L 588.89016 406.95228
+Q 588.89016 400.21884 579.36312 400.21884
+L 39.89448 400.21884
+Q 30.36744 400.21884 30.36744 406.95228
+L 30.36744 594.64692
+Q 30.36744 601.38036 39.89448 601.38036
+z
+" clip-path="url(#p0fd3210f80)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 611.51688 601.38036
+L 1150.98552 601.38036
+Q 1160.51256 601.38036 1160.51256 594.64692
+L 1160.51256 406.95228
+Q 1160.51256 400.21884 1150.98552 400.21884
+L 611.51688 400.21884
+Q 601.98984 400.21884 601.98984 406.95228
+L 601.98984 594.64692
+Q 601.98984 601.38036 611.51688 601.38036
+z
+" clip-path="url(#p0fd3210f80)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 39.89448 803.38356
+L 1150.98552 803.38356
+Q 1160.51256 803.38356 1160.51256 796.65012
+L 1160.51256 634.20588
+Q 1160.51256 627.47244 1150.98552 627.47244
+L 39.89448 627.47244
+Q 30.36744 627.47244 30.36744 634.20588
+L 30.36744 796.65012
+Q 30.36744 803.38356 39.89448 803.38356
+z
+" clip-path="url(#p0fd3210f80)" style="fill: #fff9ee; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 21px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #ffffff" x="35.7264" y="34.913878" transform="rotate(-0 35.7264 34.913878)">03  ESP32-S3: НОСИТЕЛИ И ОРГАНЫ УПРАВЛЕНИЯ</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #a02524" x="35.7264" y="85.342062" transform="rotate(-0 35.7264 85.342062)">ПРОЕКТНЫЕ НАЗНАЧЕНИЯ • Проверить ревизии плат, питание, уровни и подтяжки перед подключением</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #516172" x="35.7264" y="831.57984" transform="rotate(-0 35.7264 831.57984)">OMNIA • Direct v2.2  |  Проектные соединения, без аппаратной приёмки  |  См. SCHEMES_INDEX_RU.md</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #516172" x="1155.1536" y="831.57984" transform="rotate(-0 1155.1536 831.57984)">3 / 5</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="50.01696" y="138.573172" transform="rotate(-0 50.01696 138.573172)">A. microSD · SPI</text>
+   </g>
+   <g id="text_6">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="59.544" y="188.027022" transform="rotate(-0 59.544 188.027022)">GPIO15  MOSI</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="273.9024" y="188.546553" transform="rotate(-0 273.9024 188.546553)">→</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="321.5376" y="188.027452" transform="rotate(-0 321.5376 188.027452)">microSD DI / MOSI</text>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="59.544" y="218.327502" transform="rotate(-0 59.544 218.327502)">GPIO16  SCK</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="273.9024" y="218.847033" transform="rotate(-0 273.9024 218.847033)">→</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="321.5376" y="218.327932" transform="rotate(-0 321.5376 218.327932)">microSD CLK / SCK</text>
+   </g>
+   <g id="text_12">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="59.544" y="248.627982" transform="rotate(-0 59.544 248.627982)">GPIO17  MISO</text>
+   </g>
+   <g id="text_13">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="273.9024" y="249.147513" transform="rotate(-0 273.9024 249.147513)">→</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="321.5376" y="248.628412" transform="rotate(-0 321.5376 248.628412)">microSD DO / MISO</text>
+   </g>
+   <g id="text_15">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="59.544" y="278.928462" transform="rotate(-0 59.544 278.928462)">GPIO18  CS</text>
+   </g>
+   <g id="text_16">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="273.9024" y="279.447993" transform="rotate(-0 273.9024 279.447993)">→</text>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="321.5376" y="278.928892" transform="rotate(-0 321.5376 278.928892)">microSD CS</text>
+   </g>
+   <g id="text_18">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="59.544" y="309.228942" transform="rotate(-0 59.544 309.228942)">GND</text>
+   </g>
+   <g id="text_19">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="273.9024" y="309.748473" transform="rotate(-0 273.9024 309.748473)">→</text>
+   </g>
+   <g id="text_20">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="321.5376" y="309.228942" transform="rotate(-0 321.5376 309.228942)">GND носителя</text>
+   </g>
+   <g id="text_21">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 355.259894)">Питание модуля и уровни SPI: 3,3 В; тип адаптера</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 370.433331)">и его преобразователи уровней проверить.</text>
+   </g>
+   <g id="text_22">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="621.63936" y="138.572079" transform="rotate(-0 621.63936 138.572079)">B. BH1750 · I²C</text>
+   </g>
+   <g id="text_23">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="631.1664" y="187.975069" transform="rotate(-0 631.1664 187.975069)">GPIO2  SDA</text>
+   </g>
+   <g id="text_24">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="845.5248" y="188.546553" transform="rotate(-0 845.5248 188.546553)">→</text>
+   </g>
+   <g id="text_25">
+    <text style="font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="893.16" y="187.975069" transform="rotate(-0 893.16 187.975069)">BH1750 SDA</text>
+   </g>
+   <g id="text_26">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="631.1664" y="218.275549" transform="rotate(-0 631.1664 218.275549)">GPIO39  SCL</text>
+   </g>
+   <g id="text_27">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="845.5248" y="218.847033" transform="rotate(-0 845.5248 218.847033)">→</text>
+   </g>
+   <g id="text_28">
+    <text style="font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="893.16" y="218.275549" transform="rotate(-0 893.16 218.275549)">BH1750 SCL</text>
+   </g>
+   <g id="text_29">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="631.1664" y="248.576029" transform="rotate(-0 631.1664 248.576029)">GND</text>
+   </g>
+   <g id="text_30">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="845.5248" y="249.147513" transform="rotate(-0 845.5248 249.147513)">→</text>
+   </g>
+   <g id="text_31">
+    <text style="font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="893.16" y="248.576029" transform="rotate(-0 893.16 248.576029)">BH1750 GND</text>
+   </g>
+   <g id="text_32">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="631.1664" y="278.876509" transform="rotate(-0 631.1664 278.876509)">3,3 В</text>
+   </g>
+   <g id="text_33">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="845.5248" y="279.447993" transform="rotate(-0 845.5248 279.447993)">→</text>
+   </g>
+   <g id="text_34">
+    <text style="font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="893.16" y="278.876509" transform="rotate(-0 893.16 278.876509)">питание после проверки модуля</text>
+   </g>
+   <g id="text_35">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 355.347394)">SDA и SCL: суммарные подтяжки к 3,3 В; исходный</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 370.259894)">ориентир 4,7 кОм, учитывая уже стоящие на модулях.</text>
+   </g>
+   <g id="text_36">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="50.01696" y="433.358047" transform="rotate(-0 50.01696 433.358047)">C. VS1838B · приём ИК</text>
+   </g>
+   <g id="text_37">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 456.85208)">ESP 3,3 В → 100 Ω → VCC приёмника</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 473.001572)">ESP GND → GND; OUT → GPIO40</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 488.270048)">100 нФ + 4,7 мкФ: между VCC и GND рядом с ИК.</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 504.202158)">Порядок ножек брать по даташиту своего корпуса.</text>
+   </g>
+   <g id="text_38">
+    <text style="font-size: 10.2px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #a02524" x="59.544" y="582.716916" transform="rotate(-0 59.544 582.716916)">Не питать выход 5 В при подключении к GPIO.</text>
+   </g>
+   <g id="text_39">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="621.63936" y="433.160079" transform="rotate(-0 621.63936 433.160079)">D. Энкодер и 7 кнопок</text>
+   </g>
+   <g id="text_40">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 456.770048)">Энкодер A → GPIO41; B → GPIO42; кнопка → GPIO0.</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 472.520048)">Кнопку и подтяжку на 3,3 В/GND проверить; GPIO0 —</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 488.270048)">BOOT strap: не удерживать при включении питания.</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 504.111923)">Клавиатура: узел резистивной лестницы → GPIO1;</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 519.85208)">номиналы и допуски — до расчёта, не монтажная схема.</text>
+   </g>
+   <g id="text_41">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #9a6510" x="50.01696" y="660.87196" transform="rotate(-0 50.01696 660.87196)">E. RGB и освобождённые ресурсы</text>
+   </g>
+   <g id="text_42">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 684.115523)">GPIO48 → проектируемый согласователь → DIN кольца 12× WS2812B. Отдельно рассчитать питание/ток и уровни.</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 699.865523)">На YD GPIO48 уже связан со штатным RGB: не считать цепь «1 + 12» автоматически последовательной.</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 715.616344)">GPIO35–37 заняты Octal PSRAM; GPIO43/44 — UART0; GPIO0/3/45/46 — проверять уровни при старте.</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p0fd3210f80">
+   <rect x="0" y="0" width="1190.88" height="841.68"/>
+  </clipPath>
+ </defs>
+</svg>

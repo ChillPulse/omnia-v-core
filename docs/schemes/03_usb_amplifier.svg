@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="1190.88pt" height="841.68pt" viewBox="0 0 1190.88 841.68" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-17T20:58:37.815588</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 841.68
+L 1190.88 841.68
+L 1190.88 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 0 58.9176
+L 1190.88 58.9176
+L 1190.88 -0
+L 0 -0
+z
+" clip-path="url(#pea9ff2f735)" style="fill: #143a58; stroke: #143a58; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 39.89448 382.54356
+L 579.36312 382.54356
+Q 588.89016 382.54356 588.89016 375.81012
+L 588.89016 112.36428
+Q 588.89016 105.63084 579.36312 105.63084
+L 39.89448 105.63084
+Q 30.36744 105.63084 30.36744 112.36428
+L 30.36744 375.81012
+Q 30.36744 382.54356 39.89448 382.54356
+z
+" clip-path="url(#pea9ff2f735)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 611.51688 382.54356
+L 1150.98552 382.54356
+Q 1160.51256 382.54356 1160.51256 375.81012
+L 1160.51256 112.36428
+Q 1160.51256 105.63084 1150.98552 105.63084
+L 611.51688 105.63084
+Q 601.98984 105.63084 601.98984 112.36428
+L 601.98984 375.81012
+Q 601.98984 382.54356 611.51688 382.54356
+z
+" clip-path="url(#pea9ff2f735)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 39.89448 618.21396
+L 579.36312 618.21396
+Q 588.89016 618.21396 588.89016 611.48052
+L 588.89016 415.36908
+Q 588.89016 408.63564 579.36312 408.63564
+L 39.89448 408.63564
+Q 30.36744 408.63564 30.36744 415.36908
+L 30.36744 611.48052
+Q 30.36744 618.21396 39.89448 618.21396
+z
+" clip-path="url(#pea9ff2f735)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 611.51688 618.21396
+L 1150.98552 618.21396
+Q 1160.51256 618.21396 1160.51256 611.48052
+L 1160.51256 415.36908
+Q 1160.51256 408.63564 1150.98552 408.63564
+L 611.51688 408.63564
+Q 601.98984 408.63564 601.98984 415.36908
+L 601.98984 611.48052
+Q 601.98984 618.21396 611.51688 618.21396
+z
+" clip-path="url(#pea9ff2f735)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 39.89448 803.38356
+L 1150.98552 803.38356
+Q 1160.51256 803.38356 1160.51256 796.65012
+L 1160.51256 651.03948
+Q 1160.51256 644.30604 1150.98552 644.30604
+L 39.89448 644.30604
+Q 30.36744 644.30604 30.36744 651.03948
+L 30.36744 796.65012
+Q 30.36744 803.38356 39.89448 803.38356
+z
+" clip-path="url(#pea9ff2f735)" style="fill: #fff2f2; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 21px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #ffffff" x="35.7264" y="34.913878" transform="rotate(-0 35.7264 34.913878)">04  USB, ЦАП И УСИЛИТЕЛЬ: ГРАНИЦЫ ПОДКЛЮЧЕНИЯ</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #a02524" x="35.7264" y="85.522101" transform="rotate(-0 35.7264 85.522101)">ЭТИ УЗЛЫ НЕ ПРОШЛИ АППАРАТНУЮ ПРОВЕРКУ • Силовая часть и конкретный вход УМЗЧ требуют отдельной схемы</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #516172" x="35.7264" y="831.57984" transform="rotate(-0 35.7264 831.57984)">OMNIA • Direct v2.2  |  Проектные соединения, без аппаратной приёмки  |  См. SCHEMES_INDEX_RU.md</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #516172" x="1155.1536" y="831.57984" transform="rotate(-0 1155.1536 831.57984)">4 / 5</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="50.01696" y="138.572079" transform="rotate(-0 50.01696 138.572079)">A. Два разных USB-контроллера</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 171.09595)">ESP GPIO19 D− / GPIO20 D+ → Host MSC</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 186.18895)">Линии уже на штатном native USB-C платы YD.</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 201.877512)">Не вешать второе гнездо параллельно без схемы.</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 217.297137)">Питание VBUS, ток, защита, CC и маршрутизация</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 233.077512)">определяются после выбора топологии.</text>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 305.76475)">AT32 PA11 D− / PA12 D+ → USB-DAC UAC1</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 321.42325)">Штатный USB-C может быть связан с 5 В платы;</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 335.418562)">до подключения проверить трассы и исключить</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 352.146312)">встречное питание. Оба USB ещё не готовы.</text>
+   </g>
+   <g id="text_8">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="621.63936" y="138.640985" transform="rotate(-0 621.63936 138.640985)">B. Детектор VBUS · проект, не готовый монтаж</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 171.617012)">USB-DAC VBUS (+5 В) → R1 10 кΩ → точка S → PB9</text>
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 188.673028)">Точка S → R2 15 кΩ → GND</text>
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 205.173028)">Точка S → C1 100 нФ → GND</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 10.3px; font-family: 'DejaVu Sans'; fill: #a02524" transform="translate(631.1664 279.894295)">При 5,0 В расчётно S ≈ 3,0 В; допуски, диапазон</text>
+    <text style="font-size: 10.3px; font-family: 'DejaVu Sans'; fill: #a02524" transform="translate(631.1664 295.263827)">VBUS, ток утечки и состояние выключенного AT32</text>
+    <text style="font-size: 10.3px; font-family: 'DejaVu Sans'; fill: #a02524" transform="translate(631.1664 310.713827)">проверить отдельно. Нельзя считать VBUS на</text>
+    <text style="font-size: 10.3px; font-family: 'DejaVu Sans'; fill: #a02524" transform="translate(631.1664 326.163827)">штатном USB-C изолированным от 5 В платы.</text>
+    <text style="font-size: 10.3px; font-family: 'DejaVu Sans'; fill: #a02524" transform="translate(631.1664 342.152162)">Общая GND ≠ гальваническая изоляция.</text>
+   </g>
+   <g id="text_11">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="50.01696" y="441.645785" transform="rotate(-0 50.01696 441.645785)">C. Аналоговый выход PCM5102A</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 473.592937)">Модуль LOUT → линейный вход L усилителя</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 489.192937)">Модуль ROUT → линейный вход R усилителя</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 504.792937)">Аналоговая земля по схеме конкретного устройства.</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 520.392938)">Опциональный K1 (PB8) — сигнальное реле L/R.</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 535.901937)">Оно не защищает акустику от аварии УМЗЧ.</text>
+   </g>
+   <g id="text_13">
+    <text style="font-size: 10.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #a02524" x="59.544" y="599.53718" transform="rotate(-0 59.544 599.53718)">Усилитель подключать только после отдельной проверки.</text>
+   </g>
+   <g id="text_14">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="621.63936" y="441.576879" transform="rotate(-0 621.63936 441.576879)">D. Силовое реле и Mute — независимы</text>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 473.592937)">PB2 → рассчитанный драйвер → катушка K2</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 489.101937)">K2 управляет питанием УМЗЧ; GPIO ≠ катушка!</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 504.792937)">PB4 → согласующий узел → MUTE / SDZ / RESET</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 520.482312)">PB8 → драйвер необязательного сигнального K1</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 536.082312)">PB0 → XSMT DAC при подходящей обвязке.</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 10.1px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #a02524" x="631.1664" y="599.623977" transform="rotate(-0 631.1664 599.623977)">Полярность и обвязка зависят от конкретной платы.</text>
+   </g>
+   <g id="text_17">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #a02524" x="50.01696" y="677.316185" transform="rotate(-0 50.01696 677.316185)">E. Почему нет универсальной схемы силового узла</text>
+   </g>
+   <g id="text_18">
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 709.263337)">Для K2 и PB4 нужны параметры реальной катушки, платы УМЗЧ и входов. CMUTE, MUTE, SDZ и RESET не взаимозаменяемы.</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 724.952712)">Для питания 230 В необходимы изоляция, защита и расчёт контактов с учётом пускового тока.</text>
+    <text style="font-size: 10.4px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 740.463337)">Реле K1 и программный Mute не заменяют независимую защиту динамиков от аварии усилителя.</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pea9ff2f735">
+   <rect x="0" y="0" width="1190.88" height="841.68"/>
+  </clipPath>
+ </defs>
+</svg>
