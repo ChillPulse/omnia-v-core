@@ -5,9 +5,12 @@
  */
 
 #include "omnia_at32.h"
+#include "omnia_control_policy.h"
+#include "omnia_dsp_validation.h"
 #include <string.h>
 
 #define UART_RX_DMA_RING_SIZE   1024U
+#define UART_RX_PARTIAL_TIMEOUT_MS 250U /* experimental; measured processing gap, not wire timing */
 
 static uint8_t              g_uart_rx_ring[UART_RX_DMA_RING_SIZE];
 static uint16_t             g_uart_rx_rd_idx = 0U;
@@ -15,6 +18,8 @@ static uint8_t              g_uart_tx_buf[OMNIA_PROTO_MAX_FRAME_SIZE];
 static uint8_t              g_tx_seq         = 0U;
 static uint32_t             g_last_hb_ms     = 0U;
 static uint32_t             g_last_meter_ms  = 0U;
+static uint32_t             g_last_rx_byte_ms = 0U;
+static bool                 g_have_rx_byte = false;
 
 static omnia_proto_parser_t g_parser;
 static omnia_dsp_ctx_t     *g_dsp            = NULL;
@@ -55,6 +60,9 @@ void omnia_uart_send_status_now(void)
     omnia_usb_trigger_cfg_t trig;
     omnia_usb_trigger_get_cfg(&trig);
 
+    omnia_amp_ctrl_cfg_t amp_cfg;
+    omnia_hw_get_amp_ctrl_cfg(&amp_cfg);
+
     omnia_at32_status_t st;
     memset(&st, 0, sizeof(st));
     st.sample_rate_hz    = omnia_i2s_get_current_fs();
@@ -72,6 +80,8 @@ void omnia_uart_send_status_now(void)
     st.usb_streaming     = omnia_usb_dac_is_streaming() ? 1U : 0U;
     st.bt_codec_id       = omnia_bt_receiver_get_codec();
     st.usb_trigger_en    = trig.enable_auto_switch;
+    st.amp_pwr_enabled   = omnia_hw_is_amp_pwr_on() ? 1U : 0U;
+    st.amp_mute_mode     = amp_cfg.mute_pin_mode;
 
     send_frame(0U, g_tx_seq++, OMNIA_EVT_STATUS, &st, sizeof(st));
 }
@@ -96,7 +106,7 @@ static void send_sys_info(uint8_t seq)
     omnia_sys_info_t info;
     memset(&info, 0, sizeof(info));
     info.fw_major          = 2U;
-    info.fw_minor          = 1U;
+    info.fw_minor          = 2U;
     info.fw_patch          = 0U;
     info.ext_flash_present = (fl && fl->present) ? fl->bus_type : 0U;
     info.sram_size_kb      = omnia_get_sram_size_kb();
@@ -113,33 +123,36 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
     const uint16_t   len = hdr->payload_len;
 
     switch (hdr->cmd) {
-    case OMNIA_CMD_MUTE:
-        if (len >= sizeof(omnia_cmd_mute_t)) {
-            const omnia_cmd_mute_t *m = (const omnia_cmd_mute_t *)pay;
-            omnia_dsp_set_mute(g_dsp, true, m->ramp_ms);
-            if (m->hard_xsmt) {
-                omnia_delay_ms(m->ramp_ms > 40U ? 40U : m->ramp_ms);
-                omnia_hw_set_dac_xsmt(false);
-            }
-        } else {
-            omnia_dsp_set_mute(g_dsp, true, 25U);
+    case OMNIA_CMD_MUTE: {
+        omnia_cmd_mute_t m;
+        if (!omnia_policy_decode_mute(pay, len, &m)) {
+            res = OMNIA_STATUS_ERR_INVALID_ARG;
+            break;
+        }
+        omnia_dsp_set_mute(g_dsp, true, m.ramp_ms);
+        if (m.hard_xsmt) {
+            omnia_delay_ms(m.ramp_ms > 40U ? 40U : m.ramp_ms);
+            omnia_hw_set_dac_xsmt(false);
         }
         break;
-
-    case OMNIA_CMD_UNMUTE:
+    }
+    case OMNIA_CMD_UNMUTE: {
+        omnia_cmd_mute_t m;
+        if (!omnia_policy_decode_mute(pay, len, &m) || g_dsp->dc_fault_tripped || omnia_hw_has_fault()) {
+            res = OMNIA_STATUS_ERR_INVALID_ARG;
+            break;
+        }
         omnia_hw_set_dac_xsmt(true);
-        if (len >= sizeof(omnia_cmd_mute_t)) {
-            const omnia_cmd_mute_t *m = (const omnia_cmd_mute_t *)pay;
-            omnia_dsp_set_mute(g_dsp, false, m->ramp_ms);
-        } else {
-            omnia_dsp_set_mute(g_dsp, false, 25U);
-        }
+        omnia_dsp_set_mute(g_dsp, false, m.ramp_ms);
         break;
+    }
 
     case OMNIA_CMD_SET_VOLUME:
         if (len == sizeof(omnia_cmd_volume_t)) {
-            const omnia_cmd_volume_t *v = (const omnia_cmd_volume_t *)pay;
-            omnia_dsp_set_volume(g_dsp, v->volume_db, v->replaygain_db, v->balance, v->ramp_ms);
+            omnia_cmd_volume_t v;
+            memcpy(&v, pay, sizeof(v));
+            if (!omnia_policy_volume(&v)) res = OMNIA_STATUS_ERR_INVALID_ARG;
+            else omnia_dsp_set_volume(g_dsp, v.volume_db, v.replaygain_db, v.balance, v.ramp_ms);
         } else {
             res = OMNIA_STATUS_ERR_INVALID_ARG;
         }
@@ -151,8 +164,10 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
             if (!g_dsp->muted) {
                 res = OMNIA_STATUS_ERR_NOT_MUTED;
             } else {
-                const omnia_cmd_set_fs_t *f = (const omnia_cmd_set_fs_t *)pay;
-                if (!omnia_i2s_reconfigure_fs(f->sample_rate_hz, omnia_i2s_is_mclk_enabled())) {
+                omnia_cmd_set_fs_t f;
+                memcpy(&f, pay, sizeof(f));
+                if (!omnia_policy_word_bits(f.word_bits) ||
+                    !omnia_i2s_reconfigure_fs(f.sample_rate_hz, omnia_i2s_is_mclk_enabled())) {
                     res = OMNIA_STATUS_ERR_INVALID_ARG;
                 }
             }
@@ -163,8 +178,12 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
 
     case OMNIA_CMD_SET_I2S_SOURCE:
         if (len == sizeof(omnia_cmd_source_t)) {
-            const omnia_cmd_source_t *s = (const omnia_cmd_source_t *)pay;
+            omnia_cmd_source_t source;
+            memcpy(&source, pay, sizeof(source));
+            const omnia_cmd_source_t *s = &source;
             const omnia_i2s_source_t src = (omnia_i2s_source_t)s->source;
+            res = omnia_policy_source(s, g_dsp->muted, OMNIA_ENABLE_BT != 0, OMNIA_ENABLE_USB_DAC != 0);
+            if (res != OMNIA_STATUS_OK) break;
             omnia_usb_trigger_notify_manual_source(src);
             if (src == OMNIA_SRC_USB_DAC_UAC1) {
                 const uint32_t usb_fs = omnia_usb_dac_get_host_rate();
@@ -188,49 +207,49 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         break;
 
     case OMNIA_CMD_LOAD_HPF_HEADROOM:
-        if (len == sizeof(omnia_hpf_headroom_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_hpf_headroom(g_dsp, (const omnia_hpf_headroom_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_ROOM_PEQ:
-        if (len == sizeof(omnia_room_peq_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_room_peq(g_dsp, (const omnia_room_peq_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_USER_PEQ:
-        if (len == sizeof(omnia_user_peq_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_user_peq(g_dsp, (const omnia_user_peq_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_ANTI_AD:
-        if (len == sizeof(omnia_anti_ad_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_anti_ad(g_dsp, (const omnia_anti_ad_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_VBB:
-        if (len == sizeof(omnia_vbb_params_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_vbb(g_dsp, (const omnia_vbb_params_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_AETHER:
-        if (len == sizeof(omnia_aether_params_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_aether(g_dsp, (const omnia_aether_params_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_LOUDNESS:
-        if (len == sizeof(omnia_loudness_params_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_loudness(g_dsp, (const omnia_loudness_params_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_LOAD_LIMITER:
-        if (len == sizeof(omnia_limiter_params_t)) {
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
             omnia_dsp_apply_limiter(g_dsp, (const omnia_limiter_params_t *)pay);
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
@@ -243,30 +262,14 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         break;
 
     case OMNIA_CMD_PRESET_OP:
-        if (len == sizeof(omnia_preset_op_t)) {
-            const omnia_preset_op_t *pr = (const omnia_preset_op_t *)pay;
-            bool ok = false;
-            if (pr->op == 0U) {
-                ok = omnia_preset_load(pr->slot_index, g_dsp, NULL);
-            } else if (pr->op == 1U) {
-                ok = omnia_preset_save(pr->slot_index, pr->name, g_dsp);
-            }
-            if (!ok) {
-                res = OMNIA_STATUS_ERR_FLASH_IO;
-            }
-        } else res = OMNIA_STATUS_ERR_INVALID_ARG;
+        /* Хранилище намеренно отключено: никакого стирания до защиты разделов. */
+        res = len == sizeof(omnia_preset_op_t) ? OMNIA_STATUS_ERR_UNSUPPORTED : OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
-    case OMNIA_CMD_USB_MUX_CTRL:
+    case OMNIA_CMD_USB_TRIGGER_CFG:
         if (len == sizeof(omnia_usb_trigger_cfg_t)) {
             omnia_usb_trigger_cfg_t cfg;
             memcpy(&cfg, pay, sizeof(cfg));
-            omnia_usb_trigger_set_cfg(&cfg);
-        } else if (len == sizeof(omnia_usb_mux_cmd_t)) {
-            const omnia_usb_mux_cmd_t *u = (const omnia_usb_mux_cmd_t *)pay;
-            omnia_usb_trigger_cfg_t cfg;
-            omnia_usb_trigger_get_cfg(&cfg);
-            cfg.enable_auto_switch = (u->usb_mux_mode == 0U) ? 1U : 0U;
             omnia_usb_trigger_set_cfg(&cfg);
         } else {
             res = OMNIA_STATUS_ERR_INVALID_ARG;
@@ -274,7 +277,9 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         break;
 
     case OMNIA_CMD_BT_CTRL:
-        if (len == sizeof(omnia_bt_ctrl_cmd_t)) {
+        if (!OMNIA_ENABLE_BT) {
+            res = OMNIA_STATUS_ERR_UNSUPPORTED;
+        } else if (len == sizeof(omnia_bt_ctrl_cmd_t)) {
             omnia_bt_ctrl_cmd_t bcmd;
             memcpy(&bcmd, pay, sizeof(bcmd));
             omnia_bt_receiver_exec_cmd(&bcmd);
@@ -283,18 +288,46 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         }
         break;
 
+    case OMNIA_CMD_AMP_CTRL_CFG:
+        if (len == sizeof(omnia_amp_ctrl_cfg_t)) {
+            omnia_amp_ctrl_cfg_t acfg;
+            memcpy(&acfg, pay, sizeof(acfg));
+            if (omnia_hw_is_amp_pwr_on() || acfg.mute_pin_mode > OMNIA_AMP_MUTE_ACTIVE_HIGH_PP ||
+                acfg.amp_pwr_active_high != 1U || acfg.amp_pwr_auto_standby > 1U ||
+                acfg.warmup_delay_ms < 50U || acfg.warmup_delay_ms > 5000U ||
+                acfg.mute_to_pwr_off_ms < 20U || acfg.mute_to_pwr_off_ms > 2000U) {
+                res = OMNIA_STATUS_ERR_INVALID_ARG;
+            } else {
+                omnia_hw_apply_amp_ctrl_cfg(&acfg);
+            }
+        } else {
+            res = OMNIA_STATUS_ERR_INVALID_ARG;
+        }
+        break;
+
     case OMNIA_CMD_POWER_STATE:
         if (len == sizeof(omnia_power_cmd_t)) {
             const omnia_power_cmd_t *p = (const omnia_power_cmd_t *)pay;
-            omnia_hw_enter_standby(p->power_mode == OMNIA_PWR_STANDBY);
+            if (p->power_mode > OMNIA_PWR_STANDBY ||
+                (p->power_mode == OMNIA_PWR_ACTIVE && (g_dsp->dc_fault_tripped || !omnia_hw_amp_cfg_ready()))) {
+                res = OMNIA_STATUS_ERR_INVALID_ARG;
+            } else {
+                omnia_hw_enter_standby(p->power_mode == OMNIA_PWR_STANDBY);
+            }
         } else res = OMNIA_STATUS_ERR_INVALID_ARG;
         break;
 
     case OMNIA_CMD_MCLK_CFG:
-        if (len == sizeof(omnia_mclk_cmd_t)) {
+        if (len != sizeof(omnia_mclk_cmd_t)) {
+            res = OMNIA_STATUS_ERR_INVALID_ARG;
+        } else if (!g_dsp->muted) {
+            res = OMNIA_STATUS_ERR_NOT_MUTED;
+        } else {
             const omnia_mclk_cmd_t *mc = (const omnia_mclk_cmd_t *)pay;
-            (void)omnia_i2s_reconfigure_fs(omnia_i2s_get_current_fs(), mc->mclk_enable != 0U);
-        } else res = OMNIA_STATUS_ERR_INVALID_ARG;
+            if (mc->mclk_enable > 1U ||
+                !omnia_i2s_reconfigure_fs(omnia_i2s_get_current_fs(), mc->mclk_enable != 0U))
+                res = OMNIA_STATUS_ERR_INVALID_ARG;
+        }
         break;
 
     case OMNIA_CMD_GET_SYS_INFO:
@@ -365,12 +398,21 @@ void omnia_uart_link_init(omnia_dsp_ctx_t *dsp_ctx)
     usart_enable(USART1, TRUE);
 
     g_uart_rx_rd_idx = 0U;
+    g_have_rx_byte = false;
 }
 
 void omnia_uart_link_poll(uint32_t now_ms)
 {
     /* Вычитываем все новые байты из кругового DMA-кольца USART1 */
-    const uint16_t wr_idx = (uint16_t)(UART_RX_DMA_RING_SIZE - dma_data_number_get(DMA1_CHANNEL5));
+    /* При нулевом счётчике DMA позиция уже равна началу кольца, а не 1024. */
+    const uint16_t wr_idx = (uint16_t)((UART_RX_DMA_RING_SIZE - dma_data_number_get(DMA1_CHANNEL5)) % UART_RX_DMA_RING_SIZE);
+    if (g_have_rx_byte) {
+        (void)omnia_proto_parser_expire(&g_parser, now_ms, g_last_rx_byte_ms, UART_RX_PARTIAL_TIMEOUT_MS);
+    }
+    if (g_uart_rx_rd_idx != wr_idx) {
+        g_last_rx_byte_ms = now_ms;
+        g_have_rx_byte = true;
+    }
     while (g_uart_rx_rd_idx != wr_idx) {
         const uint8_t b = g_uart_rx_ring[g_uart_rx_rd_idx];
         g_uart_rx_rd_idx = (uint16_t)((g_uart_rx_rd_idx + 1U) % UART_RX_DMA_RING_SIZE);
@@ -380,11 +422,10 @@ void omnia_uart_link_poll(uint32_t now_ms)
         }
     }
 
-    /* Признак неисправности CRC: возвращаем NACK для ускоренного повтора с ESP32 */
-    if (g_parser.crc_errors > 0U) {
-        g_parser.crc_errors = 0U;
-        send_ack(g_parser.hdr.seq, g_parser.hdr.cmd, OMNIA_STATUS_ERR_CRC);
-    }
+    /* При CRC-ошибке заголовок недостоверен; после чтения нескольких кадров
+     * он может уже относиться к следующему валидному кадру. Не посылать NACK
+     * по такому seq/cmd: отправитель обнаруживает потерю ответа по тайм-ауту. */
+    g_parser.crc_errors = 0U;
 
     /* Пиковые уровни для аналоговых стрелочных индикаторов VU (25 Гц = каждые 40 мс) */
     if ((now_ms - g_last_meter_ms) >= 40U && g_dsp && !g_dsp->muted) {

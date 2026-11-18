@@ -23,7 +23,7 @@ static void on_usb_vbus_hotplug(bool vbus_present, uint8_t active_usb_port)
         ESP_LOGI(TAG, "Автопереход USB «на лету»: активирован вход USB-C DAC (UAC1 Async)");
         omnia_rgb_ring_set_mode(OMNIA_LED_MODE_TUBE_AMBER, 0.30f);
     } else {
-        ESP_LOGI(TAG, "Автопереход USB «на лету»: возврат на гнездо флешки USB-A (MSC Host)");
+        ESP_LOGI(TAG, "Автопереход USB «на лету»: USB-DAC не выбран или VBUS отключён");
         omnia_rgb_ring_set_mode(OMNIA_LED_MODE_OBSIDIAN_CYAN, 0.30f);
     }
 }
@@ -64,18 +64,21 @@ void app_main(void)
 
     /* 1. Инициализация энергонезависимого хранилища NVS (пресеты, Wi-Fi, обученные пульты ИК) */
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "NVS init: %s. Автостирание отключено, данные необходимо сохранить и проверить.", esp_err_to_name(ret));
+        return;
     }
-    ESP_ERROR_CHECK(ret);
 
     /* 2. Выделение неразрывных статических аудио-колец без фрагментации кучи */
     allocate_static_audio_pools();
 
-    /* 3. Подъём подсветки 12x WS2812 (Obsidian Cyan / Standby lub-dub) на GPIO38 */
+    /* 3. Подъём подсветки 12x WS2812 (Obsidian Cyan / Standby lub-dub) на GPIO48 */
     ESP_ERROR_CHECK(omnia_rgb_ring_init());
     omnia_rgb_ring_set_mode(OMNIA_LED_MODE_OBSIDIAN_CYAN, 0.28f);
+
+    /* VS1838B: диагностика NEC и сохранение кода, действия не назначены. */
+    ret = omnia_ir_receiver_init();
+    if (ret != ESP_OK) ESP_LOGW(TAG, "ИК-диагностика недоступна: %s", esp_err_to_name(ret));
 
     /* 4. Подъём ведомого I2S0 Slave TX (32-bit Phillips) на Core 1 */
     ESP_ERROR_CHECK(omnia_audio_i2s_init(&g_static_pools, 48000U));
@@ -96,20 +99,26 @@ void app_main(void)
                      (unsigned long)at32_info.ext_flash_jedec,
                      (unsigned long)(at32_info.ext_flash_bytes / 1024UL));
         } else {
-            ESP_LOGI(TAG, "Внешняя SPI Flash на AT32 не распаяна — пресеты хранятся во внутренней Flash AT32");
+            ESP_LOGI(TAG, "SPI Flash и хранение пресетов AT32 отключены до проверки схемы и защиты Flash");
         }
 
         /* Синхронизируем сохранённую настройку Триггера звуковой карты USB-DAC из NVS */
         (void)omnia_at32_sync_usb_trigger_to_at32();
+        /* Без ранее подтверждённой конфигурации питание усилителя заблокировано. */
+        ret = omnia_at32_sync_amp_ctrl_to_at32();
+        if (ret != ESP_OK) ESP_LOGW(TAG, "Конфигурация усилителя отсутствует/не принята: %s", esp_err_to_name(ret));
 
         /* Загружаем стартовый студийный профиль AETHER + ISO 226 и комфортную громкость -24 дБ */
         (void)omnia_at32_load_default_studio_profile();
         (void)omnia_at32_set_volume(-24.0f, 0.0f, 0.0f, 40U);
-        const omnia_cmd_mute_t unmute = { .ramp_ms = 35U, .hard_xsmt = 0U };
-        (void)omnia_at32_send_cmd_sync(OMNIA_CMD_UNMUTE, &unmute, sizeof(unmute), 60U);
+        /* До явной стендовой команды DAC_XSMT остаётся в mute. */
     } else {
         ESP_LOGW(TAG, "Ожидание подключения платы AT32F403 по UART1 (GPIO7/GPIO8)...");
     }
+
+    /* Временная консоль для безопасной стендовой диагностики, без УМЗЧ. */
+    ret = omnia_bench_console_init();
+    if (ret != ESP_OK) ESP_LOGW(TAG, "Стендовая консоль недоступна: %s", esp_err_to_name(ret));
 
     /* Главный цикл супервизора Core 0 */
     while (1) {

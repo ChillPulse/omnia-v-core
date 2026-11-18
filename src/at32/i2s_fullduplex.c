@@ -1,10 +1,11 @@
 /**
  * @file    i2s_fullduplex.c
  * @brief   Полнодуплексный аудио-мастер I2S2 + I2S2EXT (32-bit Phillips, круговой Ping-Pong DMA)
- *          на AT32F403ACGU7 с бесщёлчковой перестройкой Fs, встроенным тестовым синусом и замером % CPU.
+ *          на AT32F403ACGU7 с экспериментальной перестройкой Fs, тестовым синусом и замером % CPU.
  */
 
 #include "omnia_at32.h"
+#include "omnia_control_policy.h"
 #include <math.h>
 #include <string.h>
 
@@ -76,7 +77,7 @@ static void process_half_buffer(size_t half_offset_u16)
     } else if (g_source_mode == OMNIA_SRC_NONE_SILENCE) {
         memset(g_work_in_i32, 0, sizeof(g_work_in_i32));
     } else {
-        /* Прямой 24/32-битный поток от стримера ESP32-S3 GPIO5 -> PB14 (без 74HC125!) */
+        /* Прямой 24/32-битный поток от стримера ESP32-S3 GPIO5 -> PB14 */
         for (size_t f = 0; f < AUDIO_HALF_BLOCK_FRAMES; ++f) {
             const uint32_t l_u32 = ((uint32_t)rx[f * 4U]      << 16) | rx[f * 4U + 1U];
             const uint32_t r_u32 = ((uint32_t)rx[f * 4U + 2U] << 16) | rx[f * 4U + 3U];
@@ -85,7 +86,7 @@ static void process_half_buffer(size_t half_offset_u16)
         }
     }
 
-    /* Плавный бесщёлчковый fade-in (2.7 мс) при переключении между источниками */
+    /* Планируемый fade-in (2.7 мс) при переключении источников; безглитчевая работа не подтверждена */
     if (g_src_fade_gain < 1.0f) {
         float fg = g_src_fade_gain;
         for (size_t f = 0; f < AUDIO_HALF_BLOCK_FRAMES; ++f) {
@@ -173,7 +174,7 @@ static void start_i2s2_hardware(uint32_t fs_hz, bool mclk_out)
     gpio_cfg.gpio_pins = GPIO_PINS_12 | GPIO_PINS_13 | GPIO_PINS_15;
     gpio_init(GPIOB, &gpio_cfg);
 
-    /* PB14 = I2S2EXT_SD (Full-Duplex RX <- выход 74HC125): по спецификации Artery строго GPIO_MODE_INPUT! */
+    /* PB14 = I2S2EXT_SD (Full-Duplex RX <- напрямую от ESP32-S3 GPIO5): по спецификации Artery строго GPIO_MODE_INPUT! */
     gpio_cfg.gpio_mode = GPIO_MODE_INPUT;
     gpio_cfg.gpio_pull = GPIO_PULL_DOWN;
     gpio_cfg.gpio_pins = GPIO_PINS_14;
@@ -182,7 +183,7 @@ static void start_i2s2_hardware(uint32_t fs_hz, bool mclk_out)
     memset(g_dma_rx_u16, 0, sizeof(g_dma_rx_u16));
     memset(g_dma_tx_u16, 0, sizeof(g_dma_tx_u16));
 
-    /* DMA1 Channel 2: I2S2EXT RX (круговой приём от 74HC125) */
+    /* DMA1 Channel 2: I2S2EXT RX (круговой прямой приём 24-bit от ESP32-S3 GPIO5) */
     dma_reset(DMA1_CHANNEL2);
     dma_default_para_init(&dma_cfg);
     dma_cfg.buffer_size           = AUDIO_DMA_HALFWORDS_TOTAL;
@@ -207,7 +208,7 @@ static void start_i2s2_hardware(uint32_t fs_hz, bool mclk_out)
     dma_flexible_config(DMA1, FLEX_CHANNEL1, DMA_FLEXIBLE_SPI2_TX);
 
     dma_interrupt_enable(DMA1_CHANNEL1, DMA_HDT_INT | DMA_FDT_INT, TRUE);
-    nvic_irq_enable(DMA1_Channel1_IRQn, 0, 0); /* Высший приоритет прерывания в системе = 0 джиттера! */
+    nvic_irq_enable(DMA1_Channel1_IRQn, 0, 0); /* Высший приоритет; задержки и джиттер необходимо измерить */
 
     /* Конфигурация I2S2 Master TX + I2S2EXT Slave RX (32-bit Phillips) */
     spi_i2s_reset(SPI2);
@@ -253,12 +254,12 @@ void omnia_i2s_audio_init(omnia_dsp_ctx_t *dsp_ctx)
 }
 
 /**
- * @brief  Строгая бесщёлчковая перестройка частоты Fs (Policy 1):
+ * @brief  Экспериментальная перестройка частоты Fs (бесщёлчковость не подтверждена):
  *         XSMT Mute -> стоп DMA -> пересчёт DSP под новый Fs -> рестарт I2S2 -> пауза стабилизации -> XSMT Unmute.
  */
 bool omnia_i2s_reconfigure_fs(uint32_t new_fs_hz, bool enable_mclk)
 {
-    if (new_fs_hz != 44100U && new_fs_hz != 48000U && new_fs_hz != 96000U) {
+    if (!omnia_policy_sample_rate(new_fs_hz)) {
         return false;
     }
     if (new_fs_hz == g_current_fs && enable_mclk == g_mclk_enabled) {

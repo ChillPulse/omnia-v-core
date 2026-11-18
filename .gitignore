@@ -9,3 +9,8 @@ dependencies.lock
 *.bin
 *.map
 tests/test_runner
+
+sdkconfig.esp32s3_omnia
+
+__pycache__/
+*.py[cod]

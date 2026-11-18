@@ -41,6 +41,7 @@ esp_err_t omnia_at32_bridge_init(omnia_vbus_event_cb_t vbus_cb);
 esp_err_t omnia_at32_send_cmd_sync(uint8_t cmd, const void *payload, uint16_t len, uint32_t timeout_ms);
 esp_err_t omnia_at32_query_sys_info(omnia_sys_info_t *out_info, uint32_t timeout_ms);
 esp_err_t omnia_at32_set_volume(float vol_db, float replaygain_db, float balance, uint16_t ramp_ms);
+/* Disabled: not yet atomic/safe; always ESP_ERR_NOT_SUPPORTED. */
 esp_err_t omnia_at32_switch_sample_rate_atomic(uint32_t new_fs_hz);
 esp_err_t omnia_at32_set_bit_perfect(bool bit_perfect_direct);
 esp_err_t omnia_at32_set_ab_compare(bool bypass_compare);
@@ -49,8 +50,17 @@ esp_err_t omnia_at32_set_input_source(omnia_i2s_source_t src);
 esp_err_t omnia_at32_set_usb_trigger_cfg(const omnia_usb_trigger_cfg_t *cfg, bool save_nvs);
 void      omnia_at32_get_usb_trigger_cfg(omnia_usb_trigger_cfg_t *out_cfg);
 esp_err_t omnia_at32_sync_usb_trigger_to_at32(void);
+esp_err_t omnia_at32_set_amp_ctrl_cfg(const omnia_amp_ctrl_cfg_t *cfg, bool save_nvs);
+void      omnia_at32_get_amp_ctrl_cfg(omnia_amp_ctrl_cfg_t *out_cfg);
+esp_err_t omnia_at32_sync_amp_ctrl_to_at32(void);
 esp_err_t omnia_at32_send_bt_ctrl(omnia_bt_action_t action, uint8_t param);
 void      omnia_at32_get_latest_status(omnia_at32_status_t *out_status);
+bool      omnia_at32_get_recent_status(omnia_at32_status_t *out_status, uint32_t max_age_ms);
+esp_err_t omnia_bench_console_init(void);
+esp_err_t omnia_ir_receiver_init(void);
+esp_err_t omnia_ir_learn_nec(const char *name);
+esp_err_t omnia_ir_get_nec(const char *name, uint32_t *out_code);
+esp_err_t omnia_ir_delete_nec(const char *name);
 void      omnia_at32_get_latest_meters(omnia_signal_meters_t *out_meters);
 void      omnia_at32_get_latest_bt_meta(omnia_bt_meta_evt_t *out_meta);
 

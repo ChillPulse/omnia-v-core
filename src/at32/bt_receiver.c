@@ -1,6 +1,6 @@
 /**
  * @file    bt_receiver.c
- * @brief   Цифровой 24-битный Bluetooth-приёмник AT32F403ACGU7 (Zero-Mux Architecture):
+ * @brief   Цифровой 24-битный Bluetooth-приёмник AT32F403ACGU7 (24-Bit Direct):
  *            1) I2S3 Slave RX (PA15=WS, PB3=CK, PB5=SD) на DMA2_Channel1 -> Farrow Cubic ASRC
  *            2) Автоопределение реальной частоты потока BT (44.1 кГц SBC/AAC vs 48 кГц aptX-HD)
  *            3) Двухпротокольный мост UART4 (PA0=TX, PA1=RX @ 115200):

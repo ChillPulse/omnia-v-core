@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="1190.88pt" height="841.68pt" viewBox="0 0 1190.88 841.68" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-17T20:58:37.123160</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 841.68
+L 1190.88 841.68
+L 1190.88 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 0 58.9176
+L 1190.88 58.9176
+L 1190.88 -0
+L 0 -0
+z
+" clip-path="url(#p6e32d53038)" style="fill: #143a58; stroke: #143a58; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 39.89448 382.54356
+L 579.36312 382.54356
+Q 588.89016 382.54356 588.89016 375.81012
+L 588.89016 112.36428
+Q 588.89016 105.63084 579.36312 105.63084
+L 39.89448 105.63084
+Q 30.36744 105.63084 30.36744 112.36428
+L 30.36744 375.81012
+Q 30.36744 382.54356 39.89448 382.54356
+z
+" clip-path="url(#p6e32d53038)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 611.51688 466.71156
+L 1150.98552 466.71156
+Q 1160.51256 466.71156 1160.51256 459.97812
+L 1160.51256 112.36428
+Q 1160.51256 105.63084 1150.98552 105.63084
+L 611.51688 105.63084
+Q 601.98984 105.63084 601.98984 112.36428
+L 601.98984 459.97812
+Q 601.98984 466.71156 611.51688 466.71156
+z
+" clip-path="url(#p6e32d53038)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 39.89448 635.04756
+L 579.36312 635.04756
+Q 588.89016 635.04756 588.89016 628.31412
+L 588.89016 406.95228
+Q 588.89016 400.21884 579.36312 400.21884
+L 39.89448 400.21884
+Q 30.36744 400.21884 30.36744 406.95228
+L 30.36744 628.31412
+Q 30.36744 635.04756 39.89448 635.04756
+z
+" clip-path="url(#p6e32d53038)" style="fill: #fff9ee; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 611.51688 635.04756
+L 1150.98552 635.04756
+Q 1160.51256 635.04756 1160.51256 628.31412
+L 1160.51256 499.53708
+Q 1160.51256 492.80364 1150.98552 492.80364
+L 611.51688 492.80364
+Q 601.98984 492.80364 601.98984 499.53708
+L 601.98984 628.31412
+Q 601.98984 635.04756 611.51688 635.04756
+z
+" clip-path="url(#p6e32d53038)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 39.89448 803.38356
+L 1150.98552 803.38356
+Q 1160.51256 803.38356 1160.51256 796.65012
+L 1160.51256 667.87308
+Q 1160.51256 661.13964 1150.98552 661.13964
+L 39.89448 661.13964
+Q 30.36744 661.13964 30.36744 667.87308
+L 30.36744 796.65012
+Q 30.36744 803.38356 39.89448 803.38356
+z
+" clip-path="url(#p6e32d53038)" style="fill: #fff2f2; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 21px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #ffffff" x="35.7264" y="34.913878" transform="rotate(-0 35.7264 34.913878)">02  ЯДРО: ESP32-S3  ↔  AT32  →  PCM5102A</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #a02524" x="35.7264" y="85.522101" transform="rotate(-0 35.7264 85.522101)">ПРОЕКТНЫЕ СЕТИ • Использовать по маркировке выводов, только после проверки питания и обвязки DAC</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #516172" x="35.7264" y="831.57984" transform="rotate(-0 35.7264 831.57984)">OMNIA • Direct v2.2  |  Проектные соединения, без аппаратной приёмки  |  См. SCHEMES_INDEX_RU.md</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #516172" x="1155.1536" y="831.57984" transform="rotate(-0 1155.1536 831.57984)">2 / 5</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="50.01696" y="138.572079" transform="rotate(-0 50.01696 138.572079)">A. UART · управляющие команды</text>
+   </g>
+   <g id="text_6">
+    <text style="font-weight: 700; font-size: 11.3px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="59.544" y="188.104952" transform="rotate(-0 59.544 188.104952)">ESP GPIO7  TX</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="273.9024" y="188.546553" transform="rotate(-0 273.9024 188.546553)">→</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 11.3px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="321.5376" y="188.104952" transform="rotate(-0 321.5376 188.104952)">AT32 PA10  RX</text>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 700; font-size: 11.3px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="59.544" y="230.188952" transform="rotate(-0 59.544 230.188952)">AT32 PA9  TX</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="273.9024" y="230.630553" transform="rotate(-0 273.9024 230.630553)">→</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 11.3px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="321.5376" y="230.188952" transform="rotate(-0 321.5376 230.188952)">ESP GPIO8  RX</text>
+   </g>
+   <g id="text_12">
+    <text style="font-weight: 700; font-size: 11.3px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="59.544" y="272.272952" transform="rotate(-0 59.544 272.272952)">ESP GND</text>
+   </g>
+   <g id="text_13">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="273.9024" y="272.714553" transform="rotate(-0 273.9024 272.714553)">→</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 11.3px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="321.5376" y="272.272952" transform="rotate(-0 321.5376 272.272952)">AT32 GND</text>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 346.843094)">Линии 3,3 В. При отдельном USB-UART для AT32</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 362.36575)">отсоединить ESP от PA9/PA10: не объединять TX.</text>
+   </g>
+   <g id="text_16">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="621.63936" y="138.770047" transform="rotate(-0 621.63936 138.770047)">B. I²S · один мастер, два приёмника</text>
+   </g>
+   <g id="text_17">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="631.1664" y="187.975069" transform="rotate(-0 631.1664 187.975069)">AT32 PB12  WS</text>
+   </g>
+   <g id="text_18">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="845.5248" y="188.546553" transform="rotate(-0 845.5248 188.546553)">→</text>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="893.16" y="187.975069" transform="rotate(-0 893.16 187.975069)">ESP GPIO6  WS  +  DAC LCK</text>
+   </g>
+   <g id="text_20">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="631.1664" y="226.692349" transform="rotate(-0 631.1664 226.692349)">AT32 PB13  BCK</text>
+   </g>
+   <g id="text_21">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="845.5248" y="227.263833" transform="rotate(-0 845.5248 227.263833)">→</text>
+   </g>
+   <g id="text_22">
+    <text style="font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="893.16" y="226.692349" transform="rotate(-0 893.16 226.692349)">ESP GPIO4  BCK +  DAC BCK</text>
+   </g>
+   <g id="text_23">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="631.1664" y="265.409629" transform="rotate(-0 631.1664 265.409629)">ESP GPIO5 DOUT</text>
+   </g>
+   <g id="text_24">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="845.5248" y="265.981113" transform="rotate(-0 845.5248 265.981113)">→</text>
+   </g>
+   <g id="text_25">
+    <text style="font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="893.16" y="265.409629" transform="rotate(-0 893.16 265.409629)">AT32 PB14  I²S RX</text>
+   </g>
+   <g id="text_26">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="631.1664" y="304.126909" transform="rotate(-0 631.1664 304.126909)">AT32 PB15 TX</text>
+   </g>
+   <g id="text_27">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="845.5248" y="304.698393" transform="rotate(-0 845.5248 304.698393)">→</text>
+   </g>
+   <g id="text_28">
+    <text style="font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="893.16" y="304.126909" transform="rotate(-0 893.16 304.126909)">DAC DIN</text>
+   </g>
+   <g id="text_29">
+    <text style="font-weight: 700; font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="631.1664" y="343.020954" transform="rotate(-0 631.1664 343.020954)">Общая GND</text>
+   </g>
+   <g id="text_30">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #047c8d" x="845.5248" y="343.415673" transform="rotate(-0 845.5248 343.415673)">→</text>
+   </g>
+   <g id="text_31">
+    <text style="font-size: 10.8px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="893.16" y="342.844189" transform="rotate(-0 893.16 342.844189)">ESP GND + AT32 GND + DAC GND</text>
+   </g>
+   <g id="text_32">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 431.184531)">AT32 master; ESP slave; DAC — приёмник. 24 полезных бита</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 446.184531)">в 32-битных слотах. Стрелки показывают направление.</text>
+   </g>
+   <g id="text_33">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #9a6510" x="50.01696" y="433.160079" transform="rotate(-0 50.01696 433.160079)">C. PCM5102A · специальные входы</text>
+   </g>
+   <g id="text_34">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 457.469384)">SCK → GND только после прозвонки обвязки;</text>
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 473.969384)">режим PLL без MCLK — не подключать PA3.</text>
+   </g>
+   <g id="text_35">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 524.286558)">XSMT: отдельный провод в прежней сборке не</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 540.036558)">понадобился. PB0 → XSMT только после проверки</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 555.68648)">перемычки и отсутствия жёсткого GND / 3,3 В.</text>
+   </g>
+   <g id="text_36">
+    <text style="font-size: 10.2px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #a02524" x="59.544" y="616.829569" transform="rotate(-0 59.544 616.829569)">FMT: I²S = LOW. L/R — линейный выход, не динамики.</text>
+   </g>
+   <g id="text_37">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="621.63936" y="525.745972" transform="rotate(-0 621.63936 525.745972)">D. ST-Link clone · SWD</text>
+   </g>
+   <g id="text_38">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 550.372036)">SWDIO ↔ PA13   •   SWCLK ↔ PA14   •   GND ↔ GND</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 565.286958)">NRST ↔ NRST при необходимости. 3,3 В подключать</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 581.314223)">лишь если на клоне это вход Vref, а не выход питания.</text>
+   </g>
+   <g id="text_39">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #a02524" x="50.01696" y="694.080879" transform="rotate(-0 50.01696 694.080879)">E. Питание и первая проверка</text>
+   </g>
+   <g id="text_40">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 717.872958)">Организовать питание каждой платы по проверенной схеме; GND общая, но 5-вольтовые линии USB не объединять наугад.</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 733.622958)">Не подавать 5 В на голый PCM5102A; вход питания модуля и его регулятор проверить. Следить за обратным питанием</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 749.190848)">через GPIO при разных моментах включения. УМЗЧ, реле, динамики и 230 В на первом этапе отключены.</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p6e32d53038">
+   <rect x="0" y="0" width="1190.88" height="841.68"/>
+  </clipPath>
+ </defs>
+</svg>

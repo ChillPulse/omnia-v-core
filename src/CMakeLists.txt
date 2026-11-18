@@ -6,4 +6,4 @@ idf_component_register(
     REQUIRES driver esp_timer nvs_flash
 )
 
-target_compile_options(${COMPONENT_LIB} PRIVATE -O3)
+target_compile_options(${COMPONENT_LIB} PRIVATE -O3 -flto)

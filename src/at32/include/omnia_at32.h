@@ -1,6 +1,6 @@
 /**
  * @file    omnia_at32.h
- * @brief   Внутренние аппаратные интерфейсы прошивки AT32F403ACGU7 (Zero-Mux 24-Bit Studio DSP)
+ * @brief   Внутренние аппаратные интерфейсы прошивки AT32F403ACGU7 (24-Bit Direct Studio DSP)
  */
 
 #ifndef OMNIA_AT32_H
@@ -14,7 +14,14 @@
 #include "omnia_dsp.h"
 #include "omnia_asrc.h"
 
-/* --- system_sram224.c: 240 МГц, раскрытие 224 КБ SRAM (EOPB0), системный таймер и DWT --- */
+#ifndef OMNIA_ENABLE_BT
+#define OMNIA_ENABLE_BT 0 /* Следующий этап после идентификации модуля */
+#endif
+#ifndef OMNIA_ENABLE_USB_DAC
+#define OMNIA_ENABLE_USB_DAC 0 /* Включать только после отдельной проверки клоков и USB */
+#endif
+
+/* --- system_sram224.c: 240 МГц, проверка 224 КБ SRAM без изменения USD, системный таймер и DWT --- */
 void     omnia_system_boot_init(void);
 uint16_t omnia_get_sram_size_kb(void);
 uint32_t omnia_millis(void);
@@ -22,11 +29,18 @@ void     omnia_delay_ms(uint32_t ms);
 void     omnia_delay_us(uint32_t us);
 uint32_t omnia_dwt_cycles(void);
 
-/* --- anti_pop_hw.c: PB0 DAC_XSMT, PB4 AMP_MUTE, PB8 RELAY_EN, PB9 VBUS_DET, PA2 BT_CTRL --- */
+/* --- anti_pop_hw.c: Секвенсор ЦАПа и УМЗЧ (PB0 XSMT, PB2 AMP_PWR, PB4 AMP_MUTE, PB8 RELAY, PB9 VBUS) --- */
 void     omnia_hw_gpio_init(void);
 void     omnia_hw_set_dac_xsmt(bool unmute);
+void     omnia_hw_set_amp_pwr(bool power_on);
+bool     omnia_hw_is_amp_pwr_on(void);
 void     omnia_hw_set_amp_mute(bool mute_active);
 void     omnia_hw_set_relay(bool closed);
+bool     omnia_hw_amp_cfg_ready(void);
+void     omnia_hw_latch_fault(void);
+bool     omnia_hw_has_fault(void);
+void     omnia_hw_apply_amp_ctrl_cfg(const omnia_amp_ctrl_cfg_t *cfg);
+void     omnia_hw_get_amp_ctrl_cfg(omnia_amp_ctrl_cfg_t *out_cfg);
 bool     omnia_hw_vbus_pin_raw(void);
 void     omnia_hw_bt_pulse_reset(uint32_t low_ms);
 void     omnia_hw_poll(uint32_t now_ms);
@@ -36,7 +50,7 @@ void     omnia_hw_power_sequence_boot(void);
 void     omnia_hw_enter_standby(bool standby);
 bool     omnia_hw_is_standby(void);
 
-/* --- spi_flash_sfdp.c: Автоопрос U3 (брюшко BlackPill) + SPI1 (PA4..PA7) по JEDEC + JESD216 SFDP --- */
+/* --- spi_flash_sfdp.c: безопасные заглушки; SPI NOR и хранение пресетов отключены --- */
 typedef struct {
     bool     present;
     uint8_t  bus_type;          /* 0 = нет, 1 = SPI1 (PA4..7), 2 = Belly U3 (PA8/PB1/PB10/PB11) */

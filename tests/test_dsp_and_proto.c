@@ -51,6 +51,15 @@ static void test_protocol_framing_and_noise_recovery(void)
         .crossfeed_fc_hz  = 700.0f
     };
 
+    /* Нельзя выдавать кадр с ненулевой длиной и NULL: это ранее включало
+     * в отправку неинициализированное содержимое выходного буфера. */
+    memset(wire, 0xA5, sizeof(wire));
+    assert(omnia_proto_build_frame(wire, sizeof(wire), 0U, 1U,
+                                   OMNIA_CMD_PING, NULL, 1U) == 0U);
+    for (size_t i = 0; i < sizeof(wire); ++i) assert(wire[i] == 0xA5U);
+    assert(omnia_proto_build_frame(wire, sizeof(wire), 0U, 1U,
+                                   OMNIA_CMD_PING, NULL, 0U) == 9U);
+
     /* Мусорные байты на линии перед валидным кадром */
     wire[0] = 0x13U;
     wire[1] = 0x55U; /* Ложная полу-преамбула */
@@ -86,7 +95,43 @@ static void test_protocol_framing_and_noise_recovery(void)
     }
     assert(!got_valid);
     assert(parser.crc_errors == 1U);
+
+    /* Следующий валидный кадр перезаписывает hdr, хотя счётчик CRC ещё не сброшен.
+     * Поэтому по hdr после полного чтения нельзя отправлять NACK за прошлую ошибку. */
+    uint8_t next[32];
+    const size_t next_len = omnia_proto_build_frame(next, sizeof(next), OMNIA_FLAG_ACK_REQ,
+                                                    77U, OMNIA_CMD_PING, NULL, 0U);
+    bool next_ok = false;
+    for (size_t i = 0; i < next_len; ++i) {
+        if (omnia_proto_parser_feed(&parser, next[i])) next_ok = true;
+    }
+    assert(next_ok && parser.crc_errors == 1U);
+    assert(parser.hdr.seq == 77U && parser.hdr.cmd == OMNIA_CMD_PING);
     printf("[OK] Протокол OMNIA v2: синхронизация после помех и отлов битого CRC проверены\n");
+}
+
+static void test_parser_partial_timeout(void)
+{
+    omnia_proto_parser_t parser;
+    omnia_proto_parser_init(&parser);
+    assert(!omnia_proto_parser_feed(&parser, 0x55U));
+    assert(parser.state == OMNIA_RX_SYNC_1);
+    assert(!omnia_proto_parser_expire(&parser, 349U, 100U, 250U));
+    assert(omnia_proto_parser_expire(&parser, 350U, 100U, 250U));
+    assert(parser.state == OMNIA_RX_SYNC_0);
+    assert(!omnia_proto_parser_expire(&parser, 500U, 100U, 250U));
+    uint8_t frame[32];
+    const size_t n = omnia_proto_build_frame(frame, sizeof(frame), OMNIA_FLAG_ACK_REQ,
+                                              43U, OMNIA_CMD_PING, NULL, 0U);
+    for (size_t i = 0; i < 5U; ++i) assert(!omnia_proto_parser_feed(&parser, frame[i]));
+    assert(!omnia_proto_parser_expire(&parser, 10U, UINT32_MAX - 100U, 250U));
+    assert(omnia_proto_parser_expire(&parser, 150U, UINT32_MAX - 100U, 250U));
+    bool got = false;
+    for (size_t i = 0; i < n; ++i) if (omnia_proto_parser_feed(&parser, frame[i])) got = true;
+    assert(got && parser.hdr.seq == 43U && parser.hdr.cmd == OMNIA_CMD_PING);
+    assert(parser.frames_ok == 1U && parser.crc_errors == 0U);
+    assert(!omnia_proto_parser_expire(NULL, 1U, 0U, 1U));
+    printf("[OK] Частичный кадр: тайм-аут обработки и переполнение часов\n");
 }
 
 static void test_bit_perfect_exact_passthrough(void)
@@ -294,7 +339,7 @@ static void test_farrow_asrc_24bit_sine_and_drift_servo(void)
            (unsigned)omnia_asrc_level(&asrc), max_steady_amp);
 }
 
-static void test_zero_mux_usb_trigger_and_bt_meta_protocol(void)
+static void test_usb_trigger_and_bt_meta_protocol(void)
 {
     omnia_proto_parser_t parser;
     omnia_proto_parser_init(&parser);
@@ -351,19 +396,52 @@ static void test_zero_mux_usb_trigger_and_bt_meta_protocol(void)
     memcpy(&meta_rx, parser.payload, sizeof(meta_rx));
     assert(meta_rx.codec_id == OMNIA_BT_CODEC_APTX_HD && meta_rx.bit_depth == 24U);
     assert(strcmp(meta_rx.artist, "Кино") == 0);
-    printf("[OK] Протокол Zero-Mux 24-Bit: Триггер USB-DAC (+5V) и метаданные BT aptX-HD (UTF-8) проверены!\n");
+    printf("[OK] Протокол 24-Bit Direct: Триггер USB-DAC (+5V) и метаданные BT aptX-HD (UTF-8) проверены!\n");
+}
+
+static void test_amp_control_protocol(void)
+{
+    const omnia_amp_ctrl_cfg_t cfg = {
+        .mute_pin_mode = OMNIA_AMP_MUTE_ACTIVE_LOW_OD,
+        .amp_pwr_active_high = 1, .amp_pwr_auto_standby = 1,
+        .warmup_delay_ms = 500, .mute_to_pwr_off_ms = 80
+    };
+    uint8_t wire[OMNIA_PROTO_MAX_FRAME_SIZE];
+    omnia_proto_parser_t parser;
+    omnia_proto_parser_init(&parser);
+    size_t n = omnia_proto_build_frame(wire, sizeof(wire), OMNIA_FLAG_ACK_REQ, 11,
+                                       OMNIA_CMD_AMP_CTRL_CFG, &cfg, sizeof(cfg));
+    assert(n > 0);
+    bool got = false;
+    for (size_t i = 0; i < n; ++i) if (omnia_proto_parser_feed(&parser, wire[i])) got = true;
+    assert(got && parser.hdr.cmd == 0x24 && parser.hdr.payload_len == sizeof(cfg));
+    omnia_amp_ctrl_cfg_t received;
+    memcpy(&received, parser.payload, sizeof(received));
+    assert(received.mute_pin_mode == OMNIA_AMP_MUTE_ACTIVE_LOW_OD);
+    assert(received.warmup_delay_ms == 500 && received.mute_to_pwr_off_ms == 80);
+    omnia_at32_status_t st = {0}, st2;
+    st.amp_pwr_enabled = 1; st.amp_mute_mode = OMNIA_AMP_MUTE_ACTIVE_HIGH_PP;
+    n = omnia_proto_build_frame(wire, sizeof(wire), 0, 12, OMNIA_EVT_STATUS, &st, sizeof(st));
+    omnia_proto_parser_init(&parser); got = false;
+    for (size_t i = 0; i < n; ++i) if (omnia_proto_parser_feed(&parser, wire[i])) got = true;
+    assert(got && parser.hdr.cmd == OMNIA_EVT_STATUS && parser.hdr.payload_len == sizeof(st));
+    memcpy(&st2, parser.payload, sizeof(st2));
+    assert(st2.amp_pwr_enabled == 1 && st2.amp_mute_mode == OMNIA_AMP_MUTE_ACTIVE_HIGH_PP);
+    printf("[OK] AMP_CTRL_CFG и статус усилителя: framing + CRC + поля\n");
 }
 
 int main(void)
 {
-    printf("=== Запуск модульных тестов OMNIA v2.1 (Zero-Mux 24-Bit) ===\n");
+    printf("=== Запуск модульных тестов OMNIA v2.2 (24-Bit Direct) ===\n");
     test_crc16_ccitt_vector();
     test_protocol_framing_and_noise_recovery();
+    test_parser_partial_timeout();
     test_bit_perfect_exact_passthrough();
     test_full_dsp_aether_subbass_mono_and_limiter();
     test_room_speaker_delay_and_phase();
     test_farrow_asrc_24bit_sine_and_drift_servo();
-    test_zero_mux_usb_trigger_and_bt_meta_protocol();
-    printf("=== ВСЕ 7 НАБОРОВ ТЕСТОВ УСПЕШНО ПРОЙДЕНЫ ===\n");
+    test_usb_trigger_and_bt_meta_protocol();
+    test_amp_control_protocol();
+    printf("=== ВСЕ 8 НАБОРОВ ТЕСТОВ УСПЕШНО ПРОЙДЕНЫ ===\n");
     return 0;
 }
