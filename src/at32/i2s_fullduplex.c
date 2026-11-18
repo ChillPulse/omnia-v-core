@@ -1,10 +1,11 @@
 /**
  * @file    i2s_fullduplex.c
  * @brief   Полнодуплексный аудио-мастер I2S2 + I2S2EXT (32-bit Phillips, круговой Ping-Pong DMA)
- *          на AT32F403ACGU7 с бесщёлчковой перестройкой Fs, встроенным тестовым синусом и замером % CPU.
+ *          на AT32F403ACGU7 с экспериментальной перестройкой Fs, тестовым синусом и замером % CPU.
  */
 
 #include "omnia_at32.h"
+#include "omnia_control_policy.h"
 #include <math.h>
 #include <string.h>
 
@@ -85,7 +86,7 @@ static void process_half_buffer(size_t half_offset_u16)
         }
     }
 
-    /* Плавный бесщёлчковый fade-in (2.7 мс) при переключении между источниками */
+    /* Планируемый fade-in (2.7 мс) при переключении источников; безглитчевая работа не подтверждена */
     if (g_src_fade_gain < 1.0f) {
         float fg = g_src_fade_gain;
         for (size_t f = 0; f < AUDIO_HALF_BLOCK_FRAMES; ++f) {
@@ -207,7 +208,7 @@ static void start_i2s2_hardware(uint32_t fs_hz, bool mclk_out)
     dma_flexible_config(DMA1, FLEX_CHANNEL1, DMA_FLEXIBLE_SPI2_TX);
 
     dma_interrupt_enable(DMA1_CHANNEL1, DMA_HDT_INT | DMA_FDT_INT, TRUE);
-    nvic_irq_enable(DMA1_Channel1_IRQn, 0, 0); /* Высший приоритет прерывания в системе = 0 джиттера! */
+    nvic_irq_enable(DMA1_Channel1_IRQn, 0, 0); /* Высший приоритет; задержки и джиттер необходимо измерить */
 
     /* Конфигурация I2S2 Master TX + I2S2EXT Slave RX (32-bit Phillips) */
     spi_i2s_reset(SPI2);
@@ -253,12 +254,12 @@ void omnia_i2s_audio_init(omnia_dsp_ctx_t *dsp_ctx)
 }
 
 /**
- * @brief  Строгая бесщёлчковая перестройка частоты Fs (Policy 1):
+ * @brief  Экспериментальная перестройка частоты Fs (бесщёлчковость не подтверждена):
  *         XSMT Mute -> стоп DMA -> пересчёт DSP под новый Fs -> рестарт I2S2 -> пауза стабилизации -> XSMT Unmute.
  */
 bool omnia_i2s_reconfigure_fs(uint32_t new_fs_hz, bool enable_mclk)
 {
-    if (new_fs_hz != 44100U && new_fs_hz != 48000U && new_fs_hz != 96000U) {
+    if (!omnia_policy_sample_rate(new_fs_hz)) {
         return false;
     }
     if (new_fs_hz == g_current_fs && enable_mclk == g_mclk_enabled) {

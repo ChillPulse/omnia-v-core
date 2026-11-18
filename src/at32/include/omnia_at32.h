@@ -50,7 +50,7 @@ void     omnia_hw_power_sequence_boot(void);
 void     omnia_hw_enter_standby(bool standby);
 bool     omnia_hw_is_standby(void);
 
-/* --- spi_flash_sfdp.c: Автоопрос U3 (брюшко BlackPill) + SPI1 (PA4..PA7) по JEDEC + JESD216 SFDP --- */
+/* --- spi_flash_sfdp.c: безопасные заглушки; SPI NOR и хранение пресетов отключены --- */
 typedef struct {
     bool     present;
     uint8_t  bus_type;          /* 0 = нет, 1 = SPI1 (PA4..7), 2 = Belly U3 (PA8/PB1/PB10/PB11) */

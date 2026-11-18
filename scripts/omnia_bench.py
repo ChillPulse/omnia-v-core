@@ -4,6 +4,7 @@
 """
 import argparse
 import binascii
+from collections import deque
 import struct
 import sys
 import time
@@ -33,7 +34,7 @@ class Parser:
             if len(self.buffer) < 7:
                 break
             size = int.from_bytes(self.buffer[2:4], 'little')
-            if size > MAX_PAYLOAD:
+            if size > MAX_PAYLOAD or (self.buffer[4] >> 4) != 2:
                 del self.buffer[0]
                 continue
             total = 9 + size
@@ -44,7 +45,7 @@ class Parser:
             if binascii.crc_hqx(candidate[2:-2], 0xffff) != expected:
                 del self.buffer[0]
                 continue
-            result.append((candidate[5], candidate[6], bytes(candidate[7:-2])))
+            result.append((candidate[5], candidate[6], candidate[4] & 0x0f, bytes(candidate[7:-2])))
             del self.buffer[:total]
         return result
 
@@ -52,6 +53,7 @@ class Parser:
 class Link:
     def __init__(self, serial):
         self.serial, self.parser, self.seq = serial, Parser(), 0
+        self.pending = deque(maxlen=64)
 
     def send(self, command, payload=b''):
         self.seq = (self.seq + 1) & 255
@@ -61,23 +63,41 @@ class Link:
     def wait(self, predicate, timeout=2.0):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            for msg in self.parser.feed(self.serial.read(256)):
+            while self.pending:
+                msg = self.pending.popleft()
                 if predicate(*msg):
                     return msg
+            self.pending.extend(self.parser.feed(self.serial.read(256)))
         raise TimeoutError('Нет ожидаемого ответа AT32. Проверьте питание, SRAM, TX/RX и скорость.')
 
     def command(self, cmd, payload=b''):
         seq = self.send(cmd, payload)
-        _, _, data = self.wait(lambda s, c, p: s == seq and c == 0x82 and len(p) >= 2 and p[0] == cmd)
-        if data[1] != 0:
-            raise RuntimeError('AT32 отклонил команду 0x%02X: статус %u' % (cmd, data[1]))
+        _, _, flags, data = self.wait(
+            lambda s, c, f, p: s == seq and c == 0x82 and len(p) == 2 and p[0] == cmd
+            and f in (0x02, 0x04))
+        if flags != 0x02 or data[1] != 0:
+            raise RuntimeError('AT32 отклонил команду 0x%02X: флаги 0x%02X, статус %u' % (cmd, flags, data[1]))
 
     def status(self):
-        return self.wait(lambda s, c, p: c == 0x80 and len(p) >= 25, 4.0)[2]
+        return self.wait(lambda s, c, f, p: c == 0x80 and f == 0 and len(p) == 25, 4.0)[3]
 
     def info(self):
         seq = self.send(0x33)
-        return self.wait(lambda s, c, p: s == seq and c == 0x85 and len(p) == 18)[2]
+        return self.wait(lambda s, c, f, p: s == seq and c == 0x85 and f == 0x02 and len(p) == 18)[3]
+
+
+def stop_tone(link):
+    """Best-effort MUTE and silence, attempting both even when one fails."""
+    errors = []
+    for cmd, payload in ((0x01, struct.pack('<HB', 25, 1)),
+                         (0x05, struct.pack('<Bff', 0, 1000.0, -24.0))):
+        try:
+            link.command(cmd, payload)
+        except Exception as exc:
+            errors.append(str(exc))
+    if errors:
+        raise RuntimeError('Не удалось подтвердить MUTE/тишину: отключите питание! ' + '; '.join(errors))
+    print('AT32 подтвердил MUTE и выбор тишины; физический XSMT проверьте прибором.')
 
 
 def main():
@@ -114,11 +134,7 @@ def main():
                 link.command(0x02, struct.pack('<HB', 35, 0))
                 time.sleep(args.tone)
             finally:
-                try:
-                    link.command(0x01, struct.pack('<HB', 25, 1))
-                    print('Тон остановлен, XSMT выключен.')
-                except Exception as exc:
-                    print('Не удалось подтвердить MUTE: отключите питание! ' + str(exc), file=sys.stderr)
+                stop_tone(link)
     except (OSError, TimeoutError, RuntimeError, serial.SerialException) as exc:
         print('Ошибка: ' + str(exc), file=sys.stderr)
         return 1

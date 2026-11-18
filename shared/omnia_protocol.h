@@ -421,7 +421,7 @@ typedef struct {
     uint8_t  fw_minor;
     uint8_t  fw_patch;
     uint8_t  ext_flash_present; /* 1 = обнаружена внешняя микросхема SPI NOR Flash на PA4..PA7 */
-    uint16_t sram_size_kb;      /* 224 (после автораскрытия EOPB0) или 96 */
+    uint16_t sram_size_kb;      /* 224 или 96 по конфигурации EOPB0; автоматическая запись отключена */
     uint32_t sysclk_hz;         /* 240000000 */
     uint32_t ext_flash_jedec;   /* Например 0xEF4016 (Winbond), 0xC84016 (GigaDevice), 0x856016 (Puya) и т.д. */
     uint32_t ext_flash_bytes;   /* Автоопределённый по SFDP/JEDEC объём внешней флешки в байтах */
@@ -452,7 +452,8 @@ static inline size_t omnia_proto_build_frame(
     uint16_t       payload_len)
 {
     const size_t total = (size_t)OMNIA_PROTO_HEADER_SIZE + payload_len + OMNIA_PROTO_CRC_SIZE;
-    if (!out_buf || payload_len > OMNIA_PROTO_MAX_PAYLOAD || out_buf_cap < total) {
+    if (!out_buf || (payload_len > 0U && !payload) ||
+        payload_len > OMNIA_PROTO_MAX_PAYLOAD || out_buf_cap < total) {
         return 0;
     }
 
@@ -503,6 +504,20 @@ static inline void omnia_proto_parser_init(omnia_proto_parser_t *p)
         memset(p, 0, sizeof(*p));
         p->state = OMNIA_RX_SYNC_0;
     }
+}
+
+/* Reset an unfinished frame after a caller-observed processing gap. Unsigned
+ * subtraction handles one uint32 clock wrap. The caller must track the last
+ * processed byte time; this does not measure the actual wire arrival time. */
+static inline bool omnia_proto_parser_expire(omnia_proto_parser_t *p, uint32_t now_ms,
+                                             uint32_t last_byte_ms, uint32_t timeout_ms)
+{
+    if (!p || timeout_ms == 0U || p->state == OMNIA_RX_SYNC_0 ||
+        (uint32_t)(now_ms - last_byte_ms) < timeout_ms) return false;
+    p->state = OMNIA_RX_SYNC_0;
+    p->hdr_idx = 0U;
+    p->pay_idx = 0U;
+    return true;
 }
 
 /**

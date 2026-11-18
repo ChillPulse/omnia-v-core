@@ -23,7 +23,7 @@ static void stop_tone(void)
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "MUTE не подтверждён (%s): отключите питание, XSMT мог остаться включённым!", esp_err_to_name(err));
     } else {
-        ESP_LOGI(TAG, "Тон остановлен; AT32 подтвердил MUTE и XSMT LOW.");
+        ESP_LOGI(TAG, "Генератор отключён; AT32 подтвердил команду MUTE. Физический уровень XSMT требует измерения.");
     }
 }
 
@@ -65,7 +65,7 @@ static void execute_line(const char *line)
     const omnia_bench_command_t cmd = omnia_bench_parse(line);
     switch (cmd.action) {
     case OMNIA_BENCH_HELP:
-        ESP_LOGI(TAG, "Команды: HELP | STATUS | TONE NOAMP 1..10 | STOP. Перед TONE физически отключите УМЗЧ, K2 и динамики.");
+        ESP_LOGI(TAG, "HELP | STATUS | TONE NOAMP 1..10 | STOP | IR LEARN ИМЯ | IR GET ИМЯ | IR DEL ИМЯ. Имя: A-Z, 0-9, _. Перед TONE отключите УМЗЧ, K2 и динамики.");
         break;
     case OMNIA_BENCH_STATUS: {
         omnia_at32_status_t st;
@@ -85,6 +85,25 @@ static void execute_line(const char *line)
     case OMNIA_BENCH_TONE:
         start_tone(cmd.seconds);
         break;
+    case OMNIA_BENCH_IR_LEARN: {
+        const esp_err_t err = omnia_ir_learn_nec(cmd.name);
+        if (err == ESP_OK) ESP_LOGI(TAG, "Нажмите кнопку NEC: %s, ожидание 30 с; запись заменит прежний код.", cmd.name);
+        else ESP_LOGW(TAG, "IR LEARN %s: %s", cmd.name, esp_err_to_name(err));
+        break;
+    }
+    case OMNIA_BENCH_IR_GET: {
+        uint32_t code;
+        const esp_err_t err = omnia_ir_get_nec(cmd.name, &code);
+        if (err == ESP_OK) ESP_LOGI(TAG, "IR %s = 0x%08lX; действие пока не назначено.", cmd.name, (unsigned long)code);
+        else ESP_LOGW(TAG, "IR GET %s: %s", cmd.name, esp_err_to_name(err));
+        break;
+    }
+    case OMNIA_BENCH_IR_DELETE: {
+        const esp_err_t err = omnia_ir_delete_nec(cmd.name);
+        if (err == ESP_OK) ESP_LOGI(TAG, "IR %s удалён.", cmd.name);
+        else ESP_LOGW(TAG, "IR DEL %s: %s", cmd.name, esp_err_to_name(err));
+        break;
+    }
     default:
         ESP_LOGW(TAG, "Неизвестная команда. Введите HELP заглавными буквами.");
         break;

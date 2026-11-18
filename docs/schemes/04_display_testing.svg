@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="1190.88pt" height="841.68pt" viewBox="0 0 1190.88 841.68" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-17T20:58:38.163131</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 841.68
+L 1190.88 841.68
+L 1190.88 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 0 58.9176
+L 1190.88 58.9176
+L 1190.88 -0
+L 0 -0
+z
+" clip-path="url(#pea7f6652b0)" style="fill: #143a58; stroke: #143a58; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 39.89448 475.12836
+L 579.36312 475.12836
+Q 588.89016 475.12836 588.89016 468.39492
+L 588.89016 112.36428
+Q 588.89016 105.63084 579.36312 105.63084
+L 39.89448 105.63084
+Q 30.36744 105.63084 30.36744 112.36428
+L 30.36744 468.39492
+Q 30.36744 475.12836 39.89448 475.12836
+z
+" clip-path="url(#pea7f6652b0)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 611.51688 475.12836
+L 1150.98552 475.12836
+Q 1160.51256 475.12836 1160.51256 468.39492
+L 1160.51256 112.36428
+Q 1160.51256 105.63084 1150.98552 105.63084
+L 611.51688 105.63084
+Q 601.98984 105.63084 601.98984 112.36428
+L 601.98984 468.39492
+Q 601.98984 475.12836 611.51688 475.12836
+z
+" clip-path="url(#pea7f6652b0)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 39.89448 668.71476
+L 1150.98552 668.71476
+Q 1160.51256 668.71476 1160.51256 661.98132
+L 1160.51256 507.95388
+Q 1160.51256 501.22044 1150.98552 501.22044
+L 39.89448 501.22044
+Q 30.36744 501.22044 30.36744 507.95388
+L 30.36744 661.98132
+Q 30.36744 668.71476 39.89448 668.71476
+z
+" clip-path="url(#pea7f6652b0)" style="fill: #fff9ee; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 39.89448 803.38356
+L 1150.98552 803.38356
+Q 1160.51256 803.38356 1160.51256 796.65012
+L 1160.51256 701.54028
+Q 1160.51256 694.80684 1150.98552 694.80684
+L 39.89448 694.80684
+Q 30.36744 694.80684 30.36744 701.54028
+L 30.36744 796.65012
+Q 30.36744 803.38356 39.89448 803.38356
+z
+" clip-path="url(#pea7f6652b0)" style="fill: #f4f8fb; stroke: #a9b9c7; stroke-width: 1.1; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 21px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #ffffff" x="35.7264" y="36.673448" transform="rotate(-0 35.7264 36.673448)">05  ДИСПЛЕЙ I80 И КОНТРОЛЬНЫЕ ТОЧКИ</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #a02524" x="35.7264" y="85.369132" transform="rotate(-0 35.7264 85.369132)">НАЗНАЧЕНИЯ В ПРОЕКТЕ • Не паять дисплей по старому рисунку: распиновка FFC и режимы не подтверждены</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #516172" x="35.7264" y="831.57984" transform="rotate(-0 35.7264 831.57984)">OMNIA • Direct v2.2  |  Проектные соединения, без аппаратной приёмки  |  См. SCHEMES_INDEX_RU.md</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #516172" x="1155.1536" y="831.57984" transform="rotate(-0 1155.1536 831.57984)">5 / 5</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="50.01696" y="138.640985" transform="rotate(-0 50.01696 138.640985)">A. Дисплей ST7789 · карта сигналов ESP</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 180.589828)">D0 GPIO9    D1 GPIO10    D2 GPIO11    D3 GPIO12</text>
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 197.089828)">D4 GPIO13  D5 GPIO14    D6 GPIO21    D7 GPIO47</text>
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 213.589828)">WR GPIO38  •  DC GPIO46  •  RST GPIO3  •  BL GPIO45</text>
+    <text style="font-size: 11px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 229.214984)">CS и RD: аппаратное назначение требует проверки.</text>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #a02524" transform="translate(59.544 296.93288)">Подписи на фото модуля не устанавливают надёжно</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #a02524" transform="translate(59.544 312.600848)">нумерацию/ориентацию FFC, распиновку подсветки</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #a02524" transform="translate(59.544 328.442723)">и электрический режим. Подтвердить IM0/1/2, трассы,</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #a02524" transform="translate(59.544 344.192723)">питание, тип шлейфа и схему до пайки.</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 414.686048)">GPIO3/45/46 — strap; проверить уровни на старте.</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 430.527923)">Готового драйвера I80 и теста экрана ещё нет.</text>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="621.63936" y="138.572079" transform="rotate(-0 621.63936 138.572079)">B. Контроль связки до усилителя</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 10.6px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 179.117359)">1  Питание отключено: проверить GND и перемычки.</text>
+    <text style="font-size: 10.6px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 195.017359)">2  Подать корректное питание; измерить напряжения</text>
+    <text style="font-size: 10.6px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 211.101203)">    и отсутствие обратного питания при выключениях.</text>
+    <text style="font-size: 10.6px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 227.001203)">3  Проверить UART и статусы, без УМЗЧ и K2.</text>
+    <text style="font-size: 10.6px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 242.901203)">4  При 48 кГц и 2 × 32-бит: LRCK ≈ 48 кГц,</text>
+    <text style="font-size: 10.6px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 258.801203)">    BCLK ≈ 3,072 МГц; сравнить оба приёмника.</text>
+    <text style="font-size: 10.6px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 274.447797)">5  Проверить данные PB14 и PB15, L/R ЦАПа и</text>
+    <text style="font-size: 10.6px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 290.417359)">    штатное состояние XSMT конкретного модуля.</text>
+    <text style="font-size: 10.6px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(631.1664 306.317359)">6  Только затем поэтапно подключать остальные узлы.</text>
+   </g>
+   <g id="text_11">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #9a6510" x="50.01696" y="534.230585" transform="rotate(-0 50.01696 534.230585)">C. Действительные сведения против предположений</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 566.224542)">Требование Direct и номера GPIO сверены с текущим ТЗ / shared/omnia_pins.h. Клоки, питание, обвязка,</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 582.120558)">устойчивость DMA, качество звука, безопасный mute и работа выбранного ST-Link не испытаны на устройстве.</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; fill: #162536" transform="translate(59.544 597.870558)">Bluetooth и его распиновка/прошивка отложены до фото модуля; PA3 — резерв под будущий MCLK.</text>
+   </g>
+   <g id="text_13">
+    <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #143a58" x="50.01696" y="728.20636" transform="rotate(-0 50.01696 728.20636)">D. Ссылки на подробную ведомость и решения</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #162536" x="59.544" y="759.721528" transform="rotate(-0 59.544 759.721528)">SCHEMES_INDEX_RU.md • CORE_SIGNAL_NETS_RU.md • AMP_CONTROL_SAFETY.md • START_HERE_RU.md</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pea7f6652b0">
+   <rect x="0" y="0" width="1190.88" height="841.68"/>
+  </clipPath>
+ </defs>
+</svg>
