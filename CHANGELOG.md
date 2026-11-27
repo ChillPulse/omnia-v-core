@@ -68,10 +68,13 @@
   PlatformIO закреплён на 6.2.0.
 
 ### Известные ограничения (честно)
-- **Локальная сборка AT32 не проверена**: загрузка toolchain-gccarmnoneeabi по реестру
-  PlatformIO в этой среде недоступна; вместо этого vendor AT32-файлы проходят
-  host-gcc `-fsyntax-only -fanalyzer` с реальными заголовками SDK (pinned commit) —
-  это не замена ARM-ссылке и не замена проверки на железе; сборка выполняется в CI.
+- **AT32-сборка**: в CI (джоб `Build AT32F403ACGU7 Studio DSP`) собирается `pio run -e at32f403_dsp`
+  (PlatformIO 6.2.0, pinned platform arterytekat32@2.0.0), затем `scripts/check_at32_elf.py`
+  и `tests/test_at32_elf_check.py` — все зелёные (run #45972839336/#45972849004, 2026-11-27).
+  Локально в этой среде реестр toolchain-gccarmnoneeabi недоступен; vendor AT32-файлы также
+  проходят host-gcc `-fsyntax-only -fanalyzer` с реальными заголовками SDK (pinned commit).
+  Проверка сборкой ≠ проверка на железе: I2S/DMA/IRQ-поведение на WeAct AT32F403ACGU7
+  не измерялось.
 - True-peak лимитер (4× TPDF-оценка) не реализован; A/B RMS-компенсация выравнивает
   до ±2.5 дБ, не лучше; мгновенного фейда коэффициентов PEQ/AETHER нет.
 - Все цели («Флагман…») — проектные намерения, а не измеренные результаты:
