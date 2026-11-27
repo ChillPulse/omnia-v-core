@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compile & Run Full Host Test Matrix (single source: tests/run_host_tests.sh)
+      - name: Compile & Run Full Host Test Matrix (single source, tests/run_host_tests.sh)
         run: bash tests/run_host_tests.sh
 
   static-analysis:
