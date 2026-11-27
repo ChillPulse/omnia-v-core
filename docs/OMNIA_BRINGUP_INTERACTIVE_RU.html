@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OMNIA · Интерактивный чек-лист первого запуска и стендовых проверок</title>
+<style>
+  :root {
+    --bg: #0f1216; --panel: #171c23; --panel2: #1e242e; --line: #2a3340;
+    --text: #e8e4da; --muted: #9aa4b2; --accent: #ffb454; --ok: #59d98e;
+    --bad: #ff6b6b; --warn: #ffd166; --focus: #7cc7ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif;
+    padding-bottom: 60px;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10; background: rgba(15,18,22,.92);
+    backdrop-filter: blur(6px); border-bottom: 1px solid var(--line);
+    padding: 10px 18px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  }
+  header h1 { font-size: 17px; margin: 0 12px 0 0; letter-spacing: .3px; }
+  header h1 small { display:block; color: var(--muted); font-weight: 400; font-size: 11px; }
+  .btn {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); color: #20160a; border-color: var(--accent); font-weight: 700; }
+  .btn.primary:hover { filter: brightness(1.1); color: #20160a; }
+  main { max-width: 1080px; margin: 0 auto; padding: 16px 18px 40px; }
+  .warning {
+    background: #2a1e12; border: 1px solid #8a5a1e; border-left: 5px solid var(--accent);
+    border-radius: 10px; padding: 12px 14px; margin: 14px 0; font-size: 13px; color: #ffd9a0;
+  }
+  .warning b { color: var(--accent); }
+  fieldset.meta {
+    border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+    padding: 12px 14px; margin: 0 0 16px; display: grid; gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+  fieldset.meta legend { padding: 0 8px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  input[type=text], input[type=date], select, textarea {
+    background: var(--panel2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 6px; padding: 6px 8px; font-size: 13px; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus, .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  section.stage {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    margin: 0 0 16px; overflow: hidden;
+  }
+  section.stage > h2 {
+    margin: 0; font-size: 15px; padding: 10px 14px; cursor: pointer; user-select: none;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    background: var(--panel2); border-bottom: 1px solid var(--line);
+  }
+  section.stage > h2 .count { color: var(--muted); font-size: 12px; font-weight: 400; white-space: nowrap; }
+  section.stage.done > h2 { border-left: 5px solid var(--ok); }
+  section.stage.blocked > h2 { border-left: 5px solid var(--bad); }
+  .stage-body { padding: 10px 14px 14px; }
+  .stage-note { color: var(--muted); font-size: 12.5px; margin: 6px 2px 12px; }
+  .item {
+    border: 1px solid var(--line); border-radius: 10px; background: var(--panel2);
+    padding: 9px 11px; margin: 0 0 9px; display: grid; gap: 8px;
+    grid-template-columns: auto 1fr;
+  }
+  .item.done { border-color: #2e6b45; }
+  .item input.chk { width: 22px; height: 22px; margin-top: 2px; accent-color: var(--ok); cursor: pointer; }
+  .item .text { font-size: 13.5px; }
+  .item .fields {
+    display: grid; gap: 6px; grid-template-columns: 1.4fr 1.1fr 1.1fr; margin-top: 8px;
+  }
+  @media (max-width: 760px) { .item .fields { grid-template-columns: 1fr; } }
+  .item .fields label { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .stage-footer { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  select.verdict {
+    background: var(--panel2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 6px; padding: 5px 8px; font-size: 13px;
+  }
+  .summary {
+    position: fixed; right: 14px; bottom: 14px; background: var(--panel2);
+    border: 1px solid var(--accent); color: var(--accent); border-radius: 10px;
+    padding: 8px 14px; font-size: 13px; box-shadow: 0 4px 18px rgba(0,0,0,.4); z-index: 20;
+  }
+  footer { max-width: 1080px; margin: 0 auto; padding: 0 18px; color: var(--muted); font-size: 12px; }
+  @media print {
+    header, .summary, .btn, .stage-footer { display: none !important; }
+    body { background: #fff; color: #000; }
+    section.stage, .item, fieldset.meta { break-inside: avoid; border-color: #999; background: #fff; }
+    input, select, textarea { border: none; border-bottom: 1px solid #666; background: #fff; color: #000; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <button class="btn" id="backBtn" title="Свернуть/развернуть все этапы">Свернуть всё</button>
+  <h1>OMNIA · Стендовый чек-лист<small>первый запуск + карта независимых проверок (A–I) · измерения/приборы/коммит</small></h1>
+  <button class="btn" id="exportBtn">Скачать JSON</button>
+  <button class="btn" id="importBtn">Загрузить JSON…</button>
+  <input type="file" id="importFile" accept="application/json" hidden>
+  <button class="btn" id="printBtn">Печать</button>
+  <button class="btn" id="resetBtn" style="border-color:#5a2a2a;color:#ff9c9c">Сбросить всё</button>
+</header>
+
+<main>
+  <div class="warning">
+    <b>Это шаблон фиксации стендовых работ, а не разрешение на прошивку или пайку и не журнал выполненных работ.</b>
+    Усилитель, K2, динамики и 230 В не подключать до отдельного этапа с схемой и разрешения. Bluetooth отложен до фото модуля.
+    Не менять USD/EOPB0 наугад. Любое измерение без прибора или с неизвестным допуском = «НЕ ПРОВЕРЕНО». Артефакты не должны содержать секреты.
+    Содержимое повторяет <a href="FIRST_BRINGUP_CHECKLIST_RU.md" style="color:var(--warn)">FIRST_BRINGUP_CHECKLIST_RU.md</a> и
+    <a href="BENCH_VERIFICATION_RECORD_RU.md" style="color:var(--warn)">BENCH_VERIFICATION_RECORD_RU.md</a>; при расхождении приоритет у markdown-документов.
+    Данные сохраняются только локально в браузере (localStorage) — JSON выгрузить и приложить к карточке опыта.
+  </div>
+
+  <fieldset class="meta" id="metaFields">
+    <legend>Карточка стенда (общие поля)</legend>
+    <label class="f">Оператор<input type="text" data-meta="operator" placeholder="кто проводит"></label>
+    <label class="f">Дата / время<input type="date" data-meta="date"></label>
+    <label class="f">Коммит + незакоммиченные изменения<input type="text" data-meta="commit" placeholder="напр. e883dff или описание WIP"></label>
+    <label class="f">ОС и инструменты сборки<input type="text" data-meta="env" placeholder="Windows 11, VS Code + PlatformIO…"></label>
+    <label class="f">Платы / ревизии / фото<input type="text" data-meta="boards" placeholder="ESP32-S3-DevKitC-1, WeAct AT32…"></label>
+    <label class="f">Источники питания и ограничения<input type="text" data-meta="power" placeholder="USB 5 В, лимит тока…"></label>
+  </fieldset>
+
+  <div id="stages"></div>
+</main>
+
+<div class="summary" id="summaryBadge">0 / 0 пунктов</div>
+
+<footer>
+  Шаблон OMNIA v-core · измерения фиксировать в момент выполнения · «прошёл» без измерения не ставить ·
+  Программные зелёные тесты ≠ проверка железа. См. <a href="REQUIREMENTS_STATUS_RU.md" style="color:var(--muted)">REQUIREMENTS_STATUS_RU.md</a>.
+</footer>
+
+<script>
+'use strict';
+
+/* Структура повторяет docs/FIRST_BRINGUP_CHECKLIST_RU.md и docs/BENCH_VERIFICATION_RECORD_RU.md (2026-11-27).
+ * При изменении документов — синхронизировать здесь. */
+const STAGES = [
+  { id: 's0', title: 'Этап 0 · Определение оборудования и исходников', note: 'До любых физических операций: идентифицировать платы, источники, инструменты.', items: [
+    'Указать ОС компьютера и чем собирается проект (VS Code + PlatformIO).',
+    'За основу: ESP32 YD-ESP32-S3 (присланная распиновка), WeAct AT32F403ACGU7, GY-PCM5102, клон ST-Link — см. KNOWN_BOARD_BASELINE_RU.md.',
+    'Перед конкретной физической операцией уточнить питание и способ проверки по доступным приборам, без предположений о выводах клона ST-Link.',
+    'Выяснить, сохранять ли заводскую прошивку и данные плат (Flash/опции — необратимы).',
+    'Открыть текущие локальные исходники; убедиться в названной версии; не предполагать, что клон main или старый WIP содержит новые коммиты.',
+    'Собрать оба окружения: pio run -e esp32s3_omnia и pio run -e at32f403_dsp. Сборка не прошивает устройства.',
+  ]},
+  { id: 's1', title: 'Этап 1 · ESP32-S3 отдельно', note: 'Только штатное питание; нагрев/ток наблюдать; при неисправности сразу отключить.', items: [
+    'При выключенном питании оставить ESP32 без внешних соединений; мультиметром проверить питание/землю на грубые КЗ (если прибор есть). Не выводить 5 В на сигнальные GPIO.',
+    'После определения USB-порта подключить кабель к штатному порту программирования; наблюдать нагрев и ток.',
+    'pio run -e esp32s3_omnia -t upload; затем pio device monitor -e esp32s3_omnia (115200 бод).',
+    'Сохранить первые строки загрузки и ошибки; отсутствие AT32 в логах нормально. Проверить PSRAM и NVS по логам, не стирая Flash наугад.',
+  ]},
+  { id: 's2', title: 'Этап 2 · AT32 отдельно', note: 'USD/EOPB0 не стирать и не менять наугад — до подтверждения утилиты и последствий.', items: [
+    'Опознать точную плату, программатор, питание и выводы SWD; Vref может быть входом измерения и не обязательно питает плату.',
+    'Считать и сохранить USD/option bytes и старую прошивку штатным инструментом; USD не стирать.',
+    'Проверить настройки по Artery AN0026 и START_HERE_RU.md; для данной прошивки требуется режим 224 КиБ.',
+    'Только после определения программатора и проверки питания прошить AT32; отдельно диагностировать UART 3,3 В.',
+  ]},
+  { id: 's3', title: 'Этап 3 · Связь плат (не первый шаг)', note: 'До объединения: обе платы отдельно проходят этапы 1–2. Обратная запитка через сигналы — отдельная проверка.', items: [
+    'Общая земля и UART только при снятом питании; не объединять 5-вольтовые выходы источников; проверить обратное питание через сигнальные линии.',
+    'Схематичный рисунок сигналов не подтверждает физическую ориентацию разъёмов и распиновку клона — сверять на месте.',
+    'До GY-PCM5102: проверка перемычек, регулятора, XSMT и SCK по маркировке и прозвонкой (фото не обязательны). ЦАП — линейный выход, не для динамиков.',
+    'Bluetooth отложен до фотографии модуля.',
+  ]},
+  { id: 'A', title: 'Проверка A · Исходники и тесты', note: 'Единственный этап, который сейчас закрыт программно (CI). Всё равно фиксировать коммит и окружение.', items: [
+    'Точный коммит и чистота дерева (git status), ОС, версии PlatformIO/Python/toolchain.',
+    'Полный прогон tests/run_host_tests.sh — зелёный (C-наборы, санитайзеры, Python unittest, DSP quality suite).',
+    'gcc -fanalyzer чистый; cppcheck (PyPI wheel) чистый либо с зафиксированными замечаниями.',
+    'Сборка обеих прошивок; AT32 ELF проходит scripts/check_at32_elf.py и tests/test_at32_elf_check.py.',
+  ]},
+  { id: 'B', title: 'Проверка B · Идентификация и питание', note: 'Нет схемы/идентификации/ограничения тока → остановка.', items: [
+    'Фото обеих сторон плат, маркировка, ревизии, распиновка (прислать, если не зафиксировано).',
+    'Схема источника питания, ограничение тока, напряжения и ток в точках (по плате, до включения).',
+    'Пределы по нагреву/току задокументированы; аварийное отключение доступно.',
+  ]},
+  { id: 'C', title: 'Проверка C · AT32 отдельно', note: 'ELF guard не доказывает физическую SRAM. 224 КиБ требуются прошивке.', items: [
+    'Программатор/ПО и его версия; фото/лог подключения SWD.',
+    'Резервная копия USD и option bytes ДО любых изменений; EOPB0 до/после (96 → 224 КиБ только после подтверждения).',
+    'Reset и логи/фото реакции после прошивки; версия fw из SYS_INFO (ожидается 2.4.0).',
+  ]},
+  { id: 'D', title: 'Проверка D · ESP32 отдельно', note: 'NVS сохранять; автостирание отключено.', items: [
+    'Модель и режим загрузки; журнал старта (PSRAM, NVS, partitions).',
+    'Консоль: HELP/STATUS отвечают; ошибки отсутствуют.',
+    'NVS не стиралась; при необходимости — бэкап.',
+  ]},
+  { id: 'E', title: 'Проверка E · AT32 + адаптер 3,3 В', note: 'STATUS/ACK — программные данные, не физическое измерение.', items: [
+    'Адаптер USB-UART 3,3 В определён, скорость 921600, TX/RX и общая земля по подтверждённой схеме.',
+    'omnia_bench.py: ответ на info/status; лог сохранён.',
+    'ESP-консоль НЕ подключена к тем же линиям одновременно.',
+  ]},
+  { id: 'F', title: 'Проверка F · Связь двух МК', note: 'Противоречие показаний → остановка. Усилитель не подключать.', items: [
+    'После снятия адаптера: STATUS в ESP-консоли; свежесть, версия, отсутствие reset/обрыва.',
+    'Уровни на PB0/PB2/PB4/PB8 измерены прибором в нескольких состояниях.',
+    'Отсутствие обратного питания через сигнальные линии.',
+  ]},
+  { id: 'G', title: 'Проверка G · Цифровой тракт и ЦАП', note: '48 кГц × 2 × 32 = 3,072 МГц BCLK номинально; измерение прибором обязательно. ТОЛЬКО стенд без УМЗЧ.', items: [
+    'Схема GY-PCM5102 подтверждена: перемычки, регулятор, XSMT, SCK по маркировке/прозвонке.',
+    'Захват LRCK/BCLK/DATA: формат, частота, каналы; измеренные значения с допуском прибора.',
+    'Синус/тон на линейном выходе через подходящий прибор (осциллограф/аудиоинтерфейс), уровень в норме.',
+  ]},
+  { id: 'H', title: 'Проверка H · Переключения, DSP, хранение, интерфейс', note: '«Готово» не отмечать без испытаний, включая сбои и питание.', items: [
+    'План отдельного опыта с критериями (переключение/щелчки/отключение питания) — приложен.',
+    'Испытание проведено; логи/осциллограммы приложены; отклонения зафиксированы.',
+  ]},
+  { id: 'I', title: 'Проверка I · Усилитель и силовая часть', note: 'НЕ подключать без конкретной платы, схемы, BOM, защиты и эквивалента нагрузки.', items: [
+    'Схема, BOM и анализ рисков согласованы; эквивалент нагрузки (лампа/резистор) готов.',
+    'Первое включение с ограничением тока; температуры и токи в норме.',
+  ]},
+];
+
+const STORAGE_KEY = 'omnia_bringup_interactive_v1';
+const stagesRoot = document.getElementById('stages');
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+function itemKey(stageId, idx) { return stageId + '.' + idx; }
+
+/* --- рендер --- */
+STAGES.forEach(stage => {
+  const sec = el('section', 'stage'); sec.id = 'stage-' + stage.id;
+  const h2 = el('h2');
+  h2.setAttribute('role', 'button');
+  h2.setAttribute('tabindex', '0');
+  h2.setAttribute('aria-expanded', 'true');
+  const titleSpan = el('span', null, stage.title);
+  const count = el('span', 'count', '0/' + stage.items.length);
+  h2.append(titleSpan, count);
+  const body = el('div', 'stage-body');
+  body.append(el('p', 'stage-note', stage.note));
+
+  stage.items.forEach((text, idx) => {
+    const item = el('div', 'item'); item.id = 'item-' + itemKey(stage.id, idx);
+    const chk = document.createElement('input');
+    chk.type = 'checkbox'; chk.className = 'chk'; chk.setAttribute('aria-label', 'выполнено');
+    chk.dataset.stage = stage.id; chk.dataset.idx = String(idx);
+    const right = el('div');
+    right.append(el('div', 'text', text));
+    const fields = el('div', 'fields');
+    const mk = (label, cls, ph) => {
+      const l = el('label'); l.append(document.createTextNode(label));
+      const i = document.createElement('input');
+      i.type = 'text'; i.className = cls; i.placeholder = ph || '';
+      i.dataset.stage = stage.id; i.dataset.idx = String(idx);
+      l.append(i); return l;
+    };
+    fields.append(
+      mk('ИЗМЕРЕНО (значение + ед.)', 'fld-measured', 'напр. 3,072 MHz ±0,5%'),
+      mk('ПРИБОР / метод', 'fld-instrument', 'напр. осциллограф DS1054Z'),
+      mk('КОММИТ / версия', 'fld-commit', 'напр. e883dff, fw 2.4.0'),
+    );
+    right.append(fields);
+    item.append(chk, right);
+    body.append(item);
+  });
+
+  const footer = el('div', 'stage-footer');
+  const verdict = document.createElement('select');
+  verdict.className = 'verdict'; verdict.dataset.stage = stage.id;
+  verdict.setAttribute('aria-label', 'Итог этапа');
+  ['НЕ ПРОВЕРЕНО', 'ПРОШЁЛ', 'НЕ ПРОШЁЛ', 'БЛОКИРОВАН'].forEach(v => {
+    const o = document.createElement('option'); o.value = v; o.textContent = v; verdict.append(o);
+  });
+  const note = document.createElement('input');
+  note.type = 'text'; note.placeholder = 'Заметка по этапу (отклонения, прерванные шаги)…';
+  note.className = 'stage-note-input'; note.dataset.stage = stage.id;
+  note.style.cssText = 'flex:1;min-width:200px;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px 8px;font-size:13px';
+  footer.append(el('span', null, 'Итог этапа:'), verdict, note);
+  body.append(footer);
+
+  const toggle = () => {
+    const expanded = h2.getAttribute('aria-expanded') === 'true';
+    h2.setAttribute('aria-expanded', String(!expanded));
+    body.style.display = expanded ? 'none' : '';
+    titleSpan.textContent = (expanded ? '▸ ' : '▾ ') + stage.title;
+  };
+  h2.addEventListener('click', toggle);
+  h2.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  toggle(); /* стартуем свёрнутыми */
+
+  sec.append(h2, body);
+  stagesRoot.append(sec);
+});
+
+/* --- состояние --- */
+function collectState() {
+  const state = { version: 1, saved_at: new Date().toISOString(), meta: {}, items: {}, verdicts: {}, notes: {} };
+  document.querySelectorAll('#metaFields [data-meta]').forEach(i => state.meta[i.dataset.meta] = i.value);
+  document.querySelectorAll('.item').forEach(item => {
+    const chk = item.querySelector('.chk');
+    const key = itemKey(chk.dataset.stage, chk.dataset.idx);
+    state.items[key] = {
+      done: chk.checked,
+      measured: item.querySelector('.fld-measured').value,
+      instrument: item.querySelector('.fld-instrument').value,
+      commit: item.querySelector('.fld-commit').value,
+    };
+  });
+  document.querySelectorAll('.verdict').forEach(v => state.verdicts[v.dataset.stage] = v.value);
+  document.querySelectorAll('.stage-note-input').forEach(n => state.notes[n.dataset.stage] = n.value);
+  return state;
+}
+
+function applyState(state) {
+  if (!state || typeof state !== 'object') { refresh(); return; }
+  document.querySelectorAll('#metaFields [data-meta]').forEach(i => { i.value = (state.meta && state.meta[i.dataset.meta]) || ''; });
+  document.querySelectorAll('.item').forEach(item => {
+    const chk = item.querySelector('.chk');
+    const key = itemKey(chk.dataset.stage, chk.dataset.idx);
+    const it = (state.items && state.items[key]) || {};
+    chk.checked = !!it.done;
+    item.classList.toggle('done', !!it.done);
+    item.querySelector('.fld-measured').value = it.measured || '';
+    item.querySelector('.fld-instrument').value = it.instrument || '';
+    item.querySelector('.fld-commit').value = it.commit || '';
+  });
+  document.querySelectorAll('.verdict').forEach(v => { v.value = (state.verdicts && state.verdicts[v.dataset.stage]) || 'НЕ ПРОВЕРЕНО'; });
+  document.querySelectorAll('.stage-note-input').forEach(n => { n.value = (state.notes && state.notes[n.dataset.stage]) || ''; });
+  refresh();
+}
+
+function save() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(collectState())); } catch (e) { /* приватный режим — просто не сохраняем */ }
+  refresh();
+}
+
+function refresh() {
+  const items = [...document.querySelectorAll('.item')];
+  const done = items.filter(i => i.querySelector('.chk').checked).length;
+  document.getElementById('summaryBadge').textContent = done + ' / ' + items.length + ' пунктов';
+  STAGES.forEach(stage => {
+    const sec = document.getElementById('stage-' + stage.id);
+    const stageItems = [...sec.querySelectorAll('.item')];
+    const stageDone = stageItems.filter(i => i.querySelector('.chk').checked).length;
+    sec.querySelector('.count').textContent = stageDone + '/' + stageItems.length;
+    const verdict = sec.querySelector('.verdict').value;
+    sec.classList.toggle('done', verdict === 'ПРОШЁЛ');
+    sec.classList.toggle('blocked', verdict === 'НЕ ПРОШЁЛ' || verdict === 'БЛОКИРОВАН');
+    stageItems.forEach(i => i.classList.toggle('done', i.querySelector('.chk').checked));
+  });
+}
+
+document.addEventListener('input', e => { if (e.target.matches('input, select, textarea')) save(); });
+document.addEventListener('change', e => { if (e.target.matches('input, select')) save(); });
+
+/* --- кнопки --- */
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(collectState(), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'omnia_bringup_' + (new Date().toISOString().slice(0, 10)) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { try { applyState(JSON.parse(String(reader.result))); save(); } catch (err) { alert('Не удалось прочитать JSON: ' + err); } };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+document.getElementById('printBtn').addEventListener('click', () => window.print());
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (confirm('Стереть все отметки и поля в этом браузере? JSON-файлы не затрагиваются.')) {
+    localStorage.removeItem(STORAGE_KEY);
+    applyState({ version: 1, meta: {}, items: {}, verdicts: {}, notes: {} });
+    save();
+  }
+});
+let allCollapsed = true;
+document.getElementById('backBtn').addEventListener('click', () => {
+  allCollapsed = !allCollapsed;
+  document.querySelectorAll('section.stage h2').forEach(h2 => {
+    const expanded = h2.getAttribute('aria-expanded') === 'true';
+    if (expanded === allCollapsed) h2.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  document.getElementById('backBtn').textContent = allCollapsed ? 'Развернуть всё' : 'Свернуть всё';
+});
+
+/* --- init --- */
+try { applyState(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')); } catch (e) { refresh(); }
+</script>
+</body>
+</html>

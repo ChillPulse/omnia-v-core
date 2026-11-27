@@ -1,4 +1,4 @@
-# OMNIA — состояние проекта (актуально на fw 2.3.0, 2026-11-27)
+# OMNIA — состояние проекта (актуально на fw 2.4.0, 2026-11-27)
 
 ## Главная цель пользователя
 
@@ -12,9 +12,9 @@
 |---|---|
 | Репозиторий | https://github.com/ChillPulse/omnia-v-core |
 | Ветка / база | работа — в `arena/*`; `main` — точка приёма после зелёного CI |
-| Последний приём в `main` | PR #4 (merge `de8db42`, 2026-11-27): fw 2.3.0, DSP/протокол hardening, quality-suite, CI-фиксы и закрепления, CHANGELOG/CONCURRENCY_MODEL |
+| Последний приём в `main` | PR #4 (merge `de8db42`, 2026-11-27): fw 2.3.0. Эта ветка содержит fw 2.4.0 (PEQ-рампа, true-peak оценка, fw-версия из `omnia_fw_version.h`, cppcheck в CI, `omnia_encoder.h`, интерактивный чек-лист) — мерж после зелёного CI |
 | CI на `main` | зелёный: host-матрица, static-analysis (`gcc -fanalyzer`), сборка AT32 (`pio run -e at32f403_dsp` + ELF checks), сборка ESP32-S3 (ESP-IDF v5.3 и PlatformIO). Runs #45972839336/#45973533677 (push), #45972849004/#45973542061 (PR) |
-| Версия прошивки | fw 2.3.0 (задаётся вручную в `send_sys_info()`; git-derived инъекции нет) |
+| Версия прошивки | fw 2.4.0 — единственный источник `src/at32/include/omnia_fw_version.h`; git-derived диагностика сборки (`pio_fw_version.py`): `OMNIA_FW_GIT_DESCRIBE`/`OMNIA_FW_GIT_BUILD` |
 
 Для истории: до приёма PR #4 CI был полностью нерабочим из-за YAML-ошибки в имени шага (workflow отклонялся целиком); до этого — success на старом WIP ([run 43310211493](https://github.com/ChillPulse/omnia-v-core/actions/runs/43310211493)); старые замеры на `daf4b78` и `4df744a` относятся к предыдущим циклам и приведены в [карточке опыта](BENCH_VERIFICATION_RECORD_RU.md).
 
@@ -23,7 +23,7 @@
 | Подсистема | Текущий статус |
 |---|---|
 | UART ESP↔AT32 | Протокол v2 и CRC, валидация ACK, дедупликация `(seq,cmd)` ×8 на AT32 (fw 2.3.0), host-стресс зелёные. Сессии, FreeRTOS-стресс, поведение DMA на платах и реальные испытания остаются. Подробно — [UART_RELIABILITY_RU.md](UART_RELIABILITY_RU.md) и [CONCURRENCY_MODEL_RU.md](CONCURRENCY_MODEL_RU.md). |
-| DSP и I²S | Код и хост-тесты зелёные (fw 2.3.0: VBB Low-Shelf, AETHER bass lock, Catmull-Rom, DC Guard, `float_to_i32_sat`, nesting-safe critical sections, `tests/test_dsp_quality.c`); сквозной тракт на аппаратуре не проверен. Автомат смены частоты намеренно заглушен (`ESP_ERR_NOT_SUPPORTED`). |
+| DSP и I²S | Код и хост-тесты зелёные (fw 2.4.0: VBB Low-Shelf, AETHER bass lock, Catmull-Rom, DC Guard, `float_to_i32_sat`, nesting-safe critical sections, `tests/test_dsp_quality.c`); сквозной тракт на аппаратуре не проверен. Автомат смены частоты намеренно заглушен (`ESP_ERR_NOT_SUPPORTED`). |
 | SRAM AT32 | ELF guard и отказ от автоматической записи USD; прошивка требует настройки 224 КБ. Реальное чтение EOPB0, startup и совместимость клона ST-Link не подтверждены. |
 | ESP | Консоль UART0 с HELP/STATUS и ограниченным стендовым тоном; тестовый тон предназначен только для тракта без УМЗЧ, K2 и акустики. Аппаратно не проверен. |
 | VS1838B | Экспериментальное NEC/Extended NEC, сохранение в NVS по имени; назначения действий нет, реальный пульт не проверен. |
@@ -36,7 +36,7 @@
 
 - Оба МК компилируются в CI; AT32 ELF проходит `scripts/check_at32_elf.py` и `tests/test_at32_elf_check.py`. **Это не тест железа.**
 - Host-матрица (`tests/run_host_tests.sh`): C-наборы, санитайзеры ASan/UBSan, Python unittest, quality-suite DSP — зелёные на `-O2` и `-O3 -ffast-math`.
-- `gcc -fanalyzer` по host-buildable юнитам — чистый. cppcheck не заявлен (нет root).
+- `gcc -fanalyzer` по host-buildable юнитам — чистый. cppcheck 2.22.0 (PyPI wheel) — чистый локально и закреплён в CI.
 - **Нет подтверждения от пользователя о сборке/прошивке/проверке физического стенда.** Нет осциллограмм, измерений, теста звука, подтверждения усилителя.
 
 ## Предупреждения о документах

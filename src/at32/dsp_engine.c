@@ -114,12 +114,97 @@ static float calc_slew_coeff(uint32_t fs, float time_ms)
 }
 
 /* --- Расчёт коэффициентов биквада (Audio EQ Cookbook Роберта Бристоу-Джонсона) --- */
+#define OMNIA_BIQUAD_RAMP_SAMPLES 240U   /* ~5.0 мс @48 кГц: anti-click при перетирании PEQ */
+
+static void biquad_snap_targets(omnia_biquad_state_t *st)
+{
+    st->sb0 = st->b0; st->sb1 = st->b1; st->sb2 = st->b2; st->sa1 = st->a1; st->sa2 = st->a2;
+    st->tb0 = st->b0; st->tb1 = st->b1; st->tb2 = st->b2; st->ta1 = st->a1; st->ta2 = st->a2;
+    st->ramp_left  = 0U;
+    st->ramp_total = 0U;
+}
+
+static void biquad_set_identity(omnia_biquad_state_t *st)
+{
+    st->b0 = 1.0f; st->b1 = 0.0f; st->b2 = 0.0f;
+    st->a1 = 0.0f; st->a2 = 0.0f;
+    st->sb0 = 1.0f; st->sb1 = 0.0f; st->sb2 = 0.0f; st->sa1 = 0.0f; st->sa2 = 0.0f;
+    st->tb0 = 1.0f; st->tb1 = 0.0f; st->tb2 = 0.0f; st->ta1 = 0.0f; st->ta2 = 0.0f;
+    st->z1_l = 0.0f; st->z2_l = 0.0f; st->z1_r = 0.0f; st->z2_r = 0.0f;
+    st->bypass = true;
+    st->ramp_left  = 0U;
+    st->ramp_total = 0U;
+}
+
+/* Перевести коэффициенты звена к цели линейной рампой. Вызывается из recalc-путей
+ * после расчёта новых коэффициентов; bypass переключается сразу (блок-граница и так
+ * атомарна), рампа стартует из ТОЖДЕСТВЕННОГО звена, если прежнее звено было выключено
+ * (у bypassed-биквада передаточная функция равна 1 — иначе рампа 0 -> цель даёт
+ * провал громкости в момент включения). */
+static void biquad_set_target(omnia_biquad_state_t *st, const omnia_biquad_state_t *src)
+{
+    if (st->bypass) {
+        st->sb0 = 1.0f; st->sb1 = 0.0f; st->sb2 = 0.0f; st->sa1 = 0.0f; st->sa2 = 0.0f;
+    } else {
+        st->sb0 = st->b0; st->sb1 = st->b1; st->sb2 = st->b2; st->sa1 = st->a1; st->sa2 = st->a2;
+    }
+    st->tb0 = src->b0; st->tb1 = src->b1; st->tb2 = src->b2; st->ta1 = src->a1; st->ta2 = src->a2;
+    if (src->bypass) {
+        st->bypass = true;          /* выключение звена — мгновенно, как раньше */
+        st->b0 = src->b0; st->b1 = src->b1; st->b2 = src->b2;
+        st->a1 = src->a1; st->a2 = src->a2;
+        st->sb0 = st->b0; st->sb1 = st->b1; st->sb2 = st->b2; st->sa1 = st->a1; st->sa2 = st->a2;
+        st->tb0 = st->b0; st->tb1 = st->b1; st->tb2 = st->b2; st->ta1 = st->a1; st->ta2 = st->a2;
+        st->ramp_left = 0U; st->ramp_total = 0U;
+        return;
+    }
+    st->bypass = false;
+    st->ramp_left  = OMNIA_BIQUAD_RAMP_SAMPLES;
+    st->ramp_total = OMNIA_BIQUAD_RAMP_SAMPLES;
+}
+
+static void biquad_ramp_tick(omnia_biquad_state_t *st)
+{
+    if (st->ramp_left == 0U) {
+        return;
+    }
+    st->ramp_left--;
+    const float t = (float)(st->ramp_total - st->ramp_left) / (float)st->ramp_total;
+    st->b0 = st->sb0 + (st->tb0 - st->sb0) * t;
+    st->b1 = st->sb1 + (st->tb1 - st->sb1) * t;
+    st->b2 = st->sb2 + (st->tb2 - st->sb2) * t;
+    st->a1 = st->sa1 + (st->ta1 - st->sa1) * t;
+    st->a2 = st->sa2 + (st->ta2 - st->sa2) * t;
+}
+
+/* Проектирование звена с учётом ctx: в фазе инициализации (coeff_ramp_enable=false)
+ * коэффициенты ставятся мгновенно, в рабочем режиме перетираются рампой. */
+static void biquad_design_ctx(omnia_dsp_ctx_t *ctx, omnia_biquad_state_t *st,
+                              omnia_biquad_type_t type, uint32_t fs_hz,
+                              float f0_hz, float q, float gain_db)
+{
+    if (!ctx->coeff_ramp_enable) {
+        omnia_dsp_biquad_design(st, type, fs_hz, f0_hz, q, gain_db);
+        return;
+    }
+    omnia_biquad_state_t tmp;
+    memset(&tmp, 0, sizeof(tmp));
+    omnia_dsp_biquad_design(&tmp, type, fs_hz, f0_hz, q, gain_db);
+    biquad_set_target(st, &tmp);
+}
+
 static void biquad_reset_z(omnia_biquad_state_t *st)
 {
     st->z1_l = 0.0f;
     st->z2_l = 0.0f;
     st->z1_r = 0.0f;
     st->z2_r = 0.0f;
+    if (st->ramp_left != 0U) {
+        st->b0 = st->tb0; st->b1 = st->tb1; st->b2 = st->tb2;
+        st->a1 = st->ta1; st->a2 = st->ta2;
+        st->ramp_left  = 0U;
+        st->ramp_total = 0U;
+    }
 }
 
 void omnia_dsp_biquad_design(
@@ -134,6 +219,7 @@ void omnia_dsp_biquad_design(
         st->b0 = 1.0f; st->b1 = 0.0f; st->b2 = 0.0f;
         st->a1 = 0.0f; st->a2 = 0.0f;
         st->bypass = true;
+        biquad_snap_targets(st);
         return;
     }
 
@@ -143,6 +229,7 @@ void omnia_dsp_biquad_design(
         st->b0 = 1.0f; st->b1 = 0.0f; st->b2 = 0.0f;
         st->a1 = 0.0f; st->a2 = 0.0f;
         st->bypass = true;
+        biquad_snap_targets(st);
         return;
     }
 
@@ -230,6 +317,7 @@ void omnia_dsp_biquad_design(
 
     default:
         st->bypass = true;
+        biquad_snap_targets(st);
         return;
     }
 
@@ -240,6 +328,7 @@ void omnia_dsp_biquad_design(
     st->a1 = a1 * inv_a0;
     st->a2 = a2 * inv_a0;
     st->bypass = false;
+    biquad_snap_targets(st);
 }
 
 static inline void biquad_step_stereo(omnia_biquad_state_t *st, float *l, float *r)
@@ -247,6 +336,7 @@ static inline void biquad_step_stereo(omnia_biquad_state_t *st, float *l, float 
     if (st->bypass) {
         return;
     }
+    biquad_ramp_tick(st);
     const float xl = *l;
     const float xr = *r;
 
@@ -267,6 +357,7 @@ static inline float biquad_step_mono_l(omnia_biquad_state_t *st, float x)
     if (st->bypass) {
         return x;
     }
+    biquad_ramp_tick(st);
     const float y = st->b0 * x + st->z1_l;
     st->z1_l = st->b1 * x - st->a1 * y + st->z2_l + DSP_ANTI_DENORMAL;
     st->z2_l = st->b2 * x - st->a2 * y - DSP_ANTI_DENORMAL;
@@ -311,8 +402,8 @@ static void update_headroom_gain(omnia_dsp_ctx_t *ctx)
 static void update_loudness_filters(omnia_dsp_ctx_t *ctx)
 {
     if (!ctx->loudness_cfg.enable || !(ctx->active_mask & OMNIA_DSP_BIT_LOUDNESS)) {
-        ctx->loudness_low_ls.bypass  = true;
-        ctx->loudness_high_hs.bypass = true;
+        biquad_set_identity(&ctx->loudness_low_ls);
+        biquad_set_identity(&ctx->loudness_high_hs);
         return;
     }
 
@@ -321,6 +412,8 @@ static void update_loudness_filters(omnia_dsp_ctx_t *ctx)
     if (deficit_db <= 0.5f) {
         ctx->loudness_low_ls.bypass  = true;
         ctx->loudness_high_hs.bypass = true;
+        ctx->loudness_low_ls.ramp_left  = 0U;
+        ctx->loudness_high_hs.ramp_left = 0U;
         return;
     }
 
@@ -329,8 +422,8 @@ static void update_loudness_filters(omnia_dsp_ctx_t *ctx)
     const float low_db   = ratio * clampf(ctx->loudness_cfg.max_bass_boost_db, OMNIA_LOUD_MAX_BASS_MIN_DB, OMNIA_LOUD_MAX_BASS_MAX_DB);
     const float high_db  = ratio * clampf(ctx->loudness_cfg.max_high_boost_db, OMNIA_LOUD_MAX_HIGH_MIN_DB, OMNIA_LOUD_MAX_HIGH_MAX_DB);
 
-    omnia_dsp_biquad_design(&ctx->loudness_low_ls,  OMNIA_BIQUAD_LOW_SHELF,  ctx->sample_rate_hz, 75.0f,   0.707f, low_db);
-    omnia_dsp_biquad_design(&ctx->loudness_high_hs, OMNIA_BIQUAD_HIGH_SHELF, ctx->sample_rate_hz, 9500.0f, 0.707f, high_db);
+    biquad_design_ctx(ctx, &ctx->loudness_low_ls,  OMNIA_BIQUAD_LOW_SHELF,  ctx->sample_rate_hz, 75.0f,   0.707f, low_db);
+    biquad_design_ctx(ctx, &ctx->loudness_high_hs, OMNIA_BIQUAD_HIGH_SHELF, ctx->sample_rate_hz, 9500.0f, 0.707f, high_db);
 }
 
 static void update_volume_targets(omnia_dsp_ctx_t *ctx, uint16_t ramp_ms)
@@ -354,7 +447,7 @@ static void update_volume_targets(omnia_dsp_ctx_t *ctx, uint16_t ramp_ms)
 static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
 {
     /* 1. Subsonic HPF */
-    omnia_dsp_biquad_design(&ctx->subsonic_biquad,
+    biquad_design_ctx(ctx, &ctx->subsonic_biquad,
                   ctx->hpf_cfg.hpf_enable ? OMNIA_BIQUAD_HIGH_PASS : OMNIA_BIQUAD_OFF,
                   ctx->sample_rate_hz, ctx->hpf_cfg.hpf_freq_hz, ctx->hpf_cfg.hpf_q, 0.0f);
 
@@ -362,10 +455,10 @@ static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
     for (uint8_t i = 0; i < OMNIA_MAX_ROOM_PEQ_BANDS; ++i) {
         if (ctx->room_cfg.enable && i < ctx->room_cfg.band_count) {
             const omnia_biquad_band_t *b = &ctx->room_cfg.bands[i];
-            omnia_dsp_biquad_design(&ctx->room_biquads[i], (omnia_biquad_type_t)b->type,
+            biquad_design_ctx(ctx, &ctx->room_biquads[i], (omnia_biquad_type_t)b->type,
                           ctx->sample_rate_hz, b->f0_hz, b->q, b->gain_db);
         } else {
-            ctx->room_biquads[i].bypass = true;
+            biquad_set_identity(&ctx->room_biquads[i]);
         }
     }
     const float max_d_samp = (float)(OMNIA_ROOM_DELAY_RING_SIZE - 4U);
@@ -384,10 +477,10 @@ static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
     for (uint8_t i = 0; i < OMNIA_MAX_USER_PEQ_BANDS; ++i) {
         if (ctx->user_cfg.enable && i < ctx->user_cfg.band_count) {
             const omnia_biquad_band_t *b = &ctx->user_cfg.bands[i];
-            omnia_dsp_biquad_design(&ctx->user_biquads[i], (omnia_biquad_type_t)b->type,
+            biquad_design_ctx(ctx, &ctx->user_biquads[i], (omnia_biquad_type_t)b->type,
                           ctx->sample_rate_hz, b->f0_hz, b->q, b->gain_db);
         } else {
-            ctx->user_biquads[i].bypass = true;
+            biquad_set_identity(&ctx->user_biquads[i]);
         }
     }
 
@@ -396,26 +489,26 @@ static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
 
     /* 6. VBB Bass */
     if (ctx->vbb_cfg.enable) {
-        omnia_dsp_biquad_design(&ctx->vbb_shelf, OMNIA_BIQUAD_LOW_SHELF,
+        biquad_design_ctx(ctx, &ctx->vbb_shelf, OMNIA_BIQUAD_LOW_SHELF,
                       ctx->sample_rate_hz, 105.0f, 0.707f,
                       clampf(ctx->vbb_cfg.amount, 0.0f, 1.0f) * 4.5f);
-        omnia_dsp_biquad_design(&ctx->vbb_extract_lp, OMNIA_BIQUAD_LOW_PASS,
+        biquad_design_ctx(ctx, &ctx->vbb_extract_lp, OMNIA_BIQUAD_LOW_PASS,
                       ctx->sample_rate_hz, clampf(ctx->vbb_cfg.freq_hz, OMNIA_VBB_FREQ_MIN_HZ, OMNIA_VBB_FREQ_MAX_HZ), 0.75f, 0.0f);
-        omnia_dsp_biquad_design(&ctx->vbb_harm_lp, OMNIA_BIQUAD_LOW_PASS,
+        biquad_design_ctx(ctx, &ctx->vbb_harm_lp, OMNIA_BIQUAD_LOW_PASS,
                       ctx->sample_rate_hz, clampf(ctx->vbb_cfg.lowpass_hz, OMNIA_VBB_LP_MIN_HZ, OMNIA_VBB_LP_MAX_HZ), 0.707f, 0.0f);
-        omnia_dsp_biquad_design(&ctx->vbb_dc_hp, OMNIA_BIQUAD_HIGH_PASS,
+        biquad_design_ctx(ctx, &ctx->vbb_dc_hp, OMNIA_BIQUAD_HIGH_PASS,
                       ctx->sample_rate_hz, 28.0f, 0.707f, 0.0f);
     }
 
     /* 7. Studio AETHER */
     ctx->aether_center_gain = db_to_lin(clampf(ctx->aether_cfg.center_anchor_db, OMNIA_AETHER_CENTER_MIN_DB, OMNIA_AETHER_CENTER_MAX_DB));
-    omnia_dsp_biquad_design(&ctx->aether_bass_hp,
+    biquad_design_ctx(ctx, &ctx->aether_bass_hp,
                   ctx->aether_cfg.bass_keep_mono ? OMNIA_BIQUAD_HIGH_PASS : OMNIA_BIQUAD_OFF,
                   ctx->sample_rate_hz, clampf(ctx->aether_cfg.bass_xover_hz, OMNIA_AETHER_BASS_XOVER_MIN, OMNIA_AETHER_BASS_XOVER_MAX), 0.7071f, 0.0f);
-    omnia_dsp_biquad_design(&ctx->aether_side_hp,
+    biquad_design_ctx(ctx, &ctx->aether_side_hp,
                   ctx->aether_cfg.side_hpf_en ? OMNIA_BIQUAD_HIGH_PASS : OMNIA_BIQUAD_OFF,
                   ctx->sample_rate_hz, clampf(ctx->aether_cfg.side_hpf_hz, OMNIA_AETHER_SIDE_HPF_MIN, OMNIA_AETHER_SIDE_HPF_MAX), 0.707f, 0.0f);
-    omnia_dsp_biquad_design(&ctx->aether_air_hs,
+    biquad_design_ctx(ctx, &ctx->aether_air_hs,
                   (ctx->aether_cfg.air_gain_db > 0.05f) ? OMNIA_BIQUAD_HIGH_SHELF : OMNIA_BIQUAD_OFF,
                   ctx->sample_rate_hz,
                   clampf(ctx->aether_cfg.air_freq_hz, OMNIA_AETHER_AIR_FREQ_MIN, OMNIA_AETHER_AIR_FREQ_MAX),
@@ -454,6 +547,9 @@ static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
 void omnia_dsp_reset_states(omnia_dsp_ctx_t *ctx)
 {
     dsp_enter_critical();
+    ctx->coeff_ramp_enable = false;
+    memset(ctx->tp_hist_l, 0, sizeof(ctx->tp_hist_l));
+    memset(ctx->tp_hist_r, 0, sizeof(ctx->tp_hist_r));
     biquad_reset_z(&ctx->subsonic_biquad);
     for (uint8_t i = 0; i < OMNIA_MAX_ROOM_PEQ_BANDS; ++i) {
         biquad_reset_z(&ctx->room_biquads[i]);
@@ -579,9 +675,11 @@ void omnia_dsp_init(omnia_dsp_ctx_t *ctx, omnia_dsp_delay_arena_t *arena, uint32
     ctx->limiter_cfg.lookahead_ms  = 1.8f;
     ctx->limiter_cfg.release_ms    = 120.0f;
 
+    ctx->coeff_ramp_enable = false;
     omnia_dsp_reset_states(ctx);
     recalc_all_coefficients(ctx);
     update_volume_targets(ctx, 25U);
+    ctx->coeff_ramp_enable = true;
     dsp_exit_critical();
 }
 
@@ -594,6 +692,7 @@ void omnia_dsp_set_sample_rate(omnia_dsp_ctx_t *ctx, uint32_t sample_rate_hz)
         omnia_dsp_reset_states(ctx);
         recalc_all_coefficients(ctx);
         update_volume_targets(ctx, 25U);
+        ctx->coeff_ramp_enable = true;
     }
     dsp_exit_critical();
 }
@@ -1154,7 +1253,52 @@ void omnia_dsp_process_block_i32(
 
         /* --- ЗВЕНО 9: Look-Ahead Safety Limiter + Защита акустики от постоянки (DC Guard) --- */
         if ((mask & OMNIA_DSP_BIT_LIMITER) || ctx->limiter_cfg.enable) {
-            const float ahead_peak = (fabsf(l) > fabsf(r)) ? fabsf(l) : fabsf(r);
+            /* Оценка суб-сэмплового (true) пика: аналитический максимум кубической
+             * интерполяции Catmull-Rom на интервале [s[n-2], s[n-1]] (соседи s[n-3], s[n]):
+             * производная кубика — квадратное уравнение, корни и значения в них считаются
+             * точно. Окно look-ahead (~86 отсчётов @48 кГц) поглощает запаздывание оценки
+             * на 2 отсчёта. Ограничение: кубическая оценка, а не polyphase 4x. */
+            const float p0l = ctx->tp_hist_l[0], p1l = ctx->tp_hist_l[1], p2l = ctx->tp_hist_l[2];
+            const float p0r = ctx->tp_hist_r[0], p1r = ctx->tp_hist_r[1], p2r = ctx->tp_hist_r[2];
+            float tp_l = (fabsf(p1l) > fabsf(p2l)) ? fabsf(p1l) : fabsf(p2l);
+            float tp_r = (fabsf(p1r) > fabsf(p2r)) ? fabsf(p1r) : fabsf(p2r);
+            for (int ch = 0; ch < 2; ++ch) {
+                const float ym1 = (ch == 0) ? p0l : p0r;
+                const float y0  = (ch == 0) ? p1l : p1r;
+                const float y1  = (ch == 0) ? p2l : p2r;
+                const float y2  = (ch == 0) ? l : r;
+                const float C1 = 0.5f * (y1 - ym1);
+                const float C2 = ym1 - 2.5f * y0 + 2.0f * y1 - 0.5f * y2;
+                const float C3 = 0.5f * (y2 - ym1) + 1.5f * (y0 - y1);
+                const float A = 3.0f * C3, B = 2.0f * C2, C = C1;
+                float mu[2] = {-1.0f, -1.0f};
+                int nroots = 0;
+                if (fabsf(A) > 1e-12f) {
+                    const float disc = B * B - 4.0f * A * C;
+                    if (disc > 0.0f) {
+                        const float sq = sqrtf(disc);
+                        mu[0] = (-B + sq) / (2.0f * A);
+                        mu[1] = (-B - sq) / (2.0f * A);
+                        nroots = 2;
+                    }
+                } else if (fabsf(B) > 1e-12f) {
+                    mu[0] = -C / B;
+                    nroots = 1;
+                }
+                for (int k = 0; k < nroots; ++k) {
+                    const float m = mu[k];
+                    if (m > 0.0f && m < 1.0f) {
+                        const float v = fabsf(((C3 * m + C2) * m + C1) * m + y0);
+                        if (ch == 0) { if (v > tp_l) tp_l = v; }
+                        else         { if (v > tp_r) tp_r = v; }
+                    }
+                }
+            }
+            ctx->tp_hist_l[0] = p1l; ctx->tp_hist_l[1] = p2l; ctx->tp_hist_l[2] = l; ctx->tp_hist_l[3] = 0.0f;
+            ctx->tp_hist_r[0] = p1r; ctx->tp_hist_r[1] = p2r; ctx->tp_hist_r[2] = r; ctx->tp_hist_r[3] = 0.0f;
+            const float sample_peak = (fabsf(l) > fabsf(r)) ? fabsf(l) : fabsf(r);
+            const float tp_peak     = (tp_l > tp_r) ? tp_l : tp_r;
+            const float ahead_peak  = (sample_peak > tp_peak) ? sample_peak : tp_peak;
             float needed_gain = 1.0f;
             if (ahead_peak > ctx->limiter_ceiling_lin && ahead_peak > 1.0e-6f) {
                 needed_gain = ctx->limiter_ceiling_lin / ahead_peak;
