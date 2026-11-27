@@ -2,7 +2,7 @@
 
 **Версия для стенда, не финальная прошивка устройства.** Bluetooth отложен до фотографии вашего модуля; в этой сборке BT и USB Audio на AT32 по умолчанию выключены. Сборка и CI не подтверждают работу аппаратуры. Усилитель, реле K2, динамики и сеть 230 В к первым этапам **не подключать**.
 
-Принятое оборудование и сверка распиновки — [аппаратная база](KNOWN_BOARD_BASELINE_RU.md). Начните с [краткого чек-листа первого запуска](FIRST_BRINGUP_CHECKLIST_RU.md) (или его [интерактивной версии](OMNIA_BRINGUP_INTERACTIVE_RU.html) с полями «измерено / прибор / коммит»).
+Принятое оборудование и сверка распиновки — [аппаратная база](KNOWN_BOARD_BASELINE_RU.md). Начните с [краткого чек-листа первого запуска](FIRST_BRINGUP_CHECKLIST_RU.md) (или его [интерактивной версии](OMNIA_BRINGUP_INTERACTIVE_RU.html) с полями «измерено / прибор / коммит»). Для Windows + VS Code/PlatformIO — пошаговая карта с точными командами: [BRINGUP_WINDOWS_RU.md](BRINGUP_WINDOWS_RU.md).
 
 Дополнительно: [план и критерии приёмки](ROADMAP_AND_ACCEPTANCE_RU.md), [карта независимых проверок и карточка опыта](BENCH_VERIFICATION_RECORD_RU.md), [версии сборки и AT32 SDK](BUILD_REPRODUCIBILITY_RU.md), [закупка и открытые решения](BOM_AND_DECISIONS_RU.md), [актуальное ТЗ v2.4](OMNIA_MASTER_SPEC_v2.0.md), [сводный статус требований](REQUIREMENTS_STATUS_RU.md), [история изменений fw](../CHANGELOG.md).
 
