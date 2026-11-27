@@ -57,7 +57,7 @@ class ProjectContract(unittest.TestCase):
                          '1813ba41974c622afd6449bfce75778c46c58f3e1d3d486e2358f88445606538')
         current = (ROOT / 'docs/OMNIA_MASTER_SPEC_v2.0.md').read_text()
         self.assertIn('SMB / NFS', current)
-        audit = (ROOT / 'docs/REQUIREMENTS_AUDIT_RU.md').read_text()
+        audit = (ROOT / 'docs/archive/REQUIREMENTS_AUDIT_RU.md').read_text()
         self.assertIn('AUD-002', audit)  # original 192 kHz remains explicitly unresolved
 
     def test_audit_preserves_source_specific_goals(self):
@@ -66,7 +66,7 @@ class ProjectContract(unittest.TestCase):
                             '15 пользовательских полос', '1.5 МиБ', 'NFS'):
             self.assertIn(requirement, spec)
         for part in (1, 2):
-            matrix = (ROOT / f'docs/REQUIREMENTS_MATRIX_PART{part}_RU.md').read_text()
+            matrix = (ROOT / f'docs/archive/REQUIREMENTS_MATRIX_PART{part}_RU.md').read_text()
             self.assertIn('Покрытие:', matrix)
             self.assertIn('не', matrix.lower())
 
