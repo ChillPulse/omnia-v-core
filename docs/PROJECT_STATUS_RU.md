@@ -12,8 +12,8 @@
 |---|---|
 | Репозиторий | https://github.com/ChillPulse/omnia-v-core |
 | Ветка / база | работа — в `arena/*`; `main` — точка приёма после зелёного CI |
-| Последний приём в `main` | PR #4 (merge `de8db42`, 2026-11-27): fw 2.3.0. Эта ветка содержит fw 2.4.0 (PEQ-рампа, true-peak оценка, fw-версия из `omnia_fw_version.h`, cppcheck в CI, `omnia_encoder.h`, интерактивный чек-лист) — мерж после зелёного CI |
-| CI на `main` | зелёный: host-матрица, static-analysis (`gcc -fanalyzer`), сборка AT32 (`pio run -e at32f403_dsp` + ELF checks), сборка ESP32-S3 (ESP-IDF v5.3 и PlatformIO). Runs #45972839336/#45973533677 (push), #45972849004/#45973542061 (PR) |
+| Последний приём в `main` | PR #6 (merge `3b6a19a`, 2026-11-27): fw 2.4.0 — PEQ-рампа коэффициентов активных звеньев, true-peak оценка (кубическая) в лимитере, fw-версия из `omnia_fw_version.h` + git-диагностика (`pio_fw_version.py`), cppcheck 2.22.0 в CI, `shared/omnia_encoder.h` (хост-тесты, в ESP32 не подключён), интерактивный стендовый чек-лист |
+| CI на `main` | зелёный: host-матрица, static-analysis (`gcc -fanalyzer` + **cppcheck 2.22.0**), сборка AT32 (`pio run -e at32f403_dsp` + ELF checks), сборка ESP32-S3 (ESP-IDF v5.3 и PlatformIO). PR #6: run [46020583632](https://github.com/ChillPulse/omnia-v-core/actions/runs/46020583632) (все 6 job'ов зелёные) |
 | Версия прошивки | fw 2.4.0 — единственный источник `src/at32/include/omnia_fw_version.h`; git-derived диагностика сборки (`pio_fw_version.py`): `OMNIA_FW_GIT_DESCRIBE`/`OMNIA_FW_GIT_BUILD` |
 
 Для истории: до приёма PR #4 CI был полностью нерабочим из-за YAML-ошибки в имени шага (workflow отклонялся целиком); до этого — success на старом WIP ([run 43310211493](https://github.com/ChillPulse/omnia-v-core/actions/runs/43310211493)); старые замеры на `daf4b78` и `4df744a` относятся к предыдущим циклам и приведены в [карточке опыта](BENCH_VERIFICATION_RECORD_RU.md).
