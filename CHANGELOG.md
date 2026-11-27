@@ -3,6 +3,27 @@
 Все существенные изменения. Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — по прошивке ядра DSP (сообщается в `OMNIA_EVT_SYS_INFO.fw_*`).
 
+## [2.4.2] — 2026-11-27
+
+Только документация: разбор фото плат пользователя и инструкция «с нуля» для Windows.
+**fw остаётся 2.4.0**; код, протокол и CI не меняются.
+
+### Добавлено / уточнено
+- `docs/BRINGUP_WINDOWS_RU.md` — этап «−1. Что установить с нуля на Windows» (Git, VS Code,
+  PlatformIO IDE, драйверы CH343P/STSW-LINK009, Python+pyserial, Artery ICP по необходимости),
+  шпаргалка по командам PlatformIO и типичные ошибки заливки (Failed to connect → BOOT/RESET).
+  Этап 5 переписан по присланным фото: GY-PCM5102 — чип PCM5102A (читаемо), два SOT-23-5 LDO,
+  LINE OUT 3,5 мм, перемычки FMT/XSMT/DEMP/FLT визуально запаяны (проверка прозвонкой обязательна),
+  питание VIN=5 В. Команды `pio device list`, `esp32s3_omnia -t upload`, `monitor`, `at32f403_dsp -t upload`.
+- `docs/KNOWN_BOARD_BASELINE_RU.md` — «Инвентарь и фото, присланные 2026-11-27»: AT32 V1.0 сверена
+  с официальным SchDoc V1.0 (площадка U3: PA8=CS#, PB1=SCK, PB10=DI/IO0, PB11=DO/IO1, PB7=WP#,
+  PB6=HOLD#; C17 пуста), ST-Link V2 pinout, CP2102 HW-598 (3,3 В обязательно), microSD-SPI (GPIO15/16/17/18,
+  прошивка SD пока не поддерживает), WS2812×12 через SN74AHCT125N (GPIO48, 5 В), BH1750 (GPIO2/39),
+  KY-040 (CLK/DT/SW, 3,3 В; интеграция не определена), USB-A (будущий Host, не подключать).
+- Вывод по вопросу «паять ли 4 МБ Flash в U3»: **нет, пока** — NOR в прошивке отключена fail-closed
+  (`omnia_ext_flash_init()` → «нет», `ext_flash_present`≡0, `PRESET_OP`→`UNSUPPORTED`, код NOR под `#if 0`);
+  площадка проверена по SchDoc V1.0 и конфликтов с I2S/UART нет, но без функции памяти это просто контакт.
+
 ## [2.4.1] — 2026-11-27
 
 Только документация: пошаговый стенд для конкретной конфигурации пользователя.
