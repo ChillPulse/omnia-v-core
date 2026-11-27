@@ -3,6 +3,36 @@
 Все существенные изменения. Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — по прошивке ядра DSP (сообщается в `OMNIA_EVT_SYS_INFO.fw_*`).
 
+## [2.3.1] — 2026-11-27
+
+Документация: консолидация ТЗ и статусов; кода прошивок не касается (fw остаётся 2.3.0).
+
+### Добавлено
+- `docs/REQUIREMENTS_STATUS_RU.md` — единый сводный статус «требование → факт → чем доказано»
+  (HOST / ЧАСТИЧНО / ЦЕЛЬ / ОТЛОЖЕНО / ЖЕЛЕЗО?), правила чтения и список открытых противоречий;
+  исторические AUD-nnn перенесены сюда ссылками.
+
+### Изменено
+- `docs/OMNIA_MASTER_SPEC_v2.0.md` — шапка: ТЗ v2.3 (соответствует fw 2.3.0), блок
+  «Живые документы» (единственное актуальное ТЗ + спутники), таблица «Текущее состояние
+  и границы доверия» приведена к fw 2.3.0 (CI зелёный на обоих МК; UART dedup;
+  хост-матрица; honest ограничения); ссылки на аудиты переключены на сводный статус/архив.
+- `docs/PROJECT_STATUS_RU.md` — переписан: убраны устаревшие сведения о `wip/v2.2-direct-safety`,
+  «15 незапушенных коммитах», отсутствовавшем CI и «connector unsupported»; актуальный main `de8db42`, PR #4, зелёный CI.
+- `docs/ROADMAP_AND_ACCEPTANCE_RU.md`, `docs/START_HERE_RU.md`, `docs/UART_RELIABILITY_RU.md`,
+  `docs/BUILD_REPRODUCIBILITY_RU.md`, `docs/BOARDS_FROM_GITHUB_RU.md`, `docs/BOM_AND_DECISIONS_RU.md`,
+  `docs/SCHEMES_INDEX_RU.md`, `docs/FLAGSHIP_VISION_RU.md`, `docs/CONCURRENCY_MODEL_RU.md`,
+  `README.md` — версия ТЗ 2.2 → 2.3, актуальные ссылки и факты (UART dedup в «Уже выполнено», этап 0 приёмки отмечен выполненным в CI).
+- `tests/test_project_contract.py` — пути аудита/матриц обновлены на `docs/archive/`.
+
+### Перенесено в архив (docs/archive/, не применять)
+- `REQUIREMENTS_AUDIT_RU.md`, `FULL_REQUIREMENTS_REVIEW_RU.md`,
+  `REQUIREMENTS_MATRIX_PART1_RU.md`, `REQUIREMENTS_MATRIX_PART2_RU.md` — с баннером и `docs/archive/README.md`.
+
+### Не изменилось (намеренно)
+- fw 2.3.0, протокол, лимиты, плагины DSP: изменений нет, прошивку перепрошивать не требуется.
+- Все аппаратные ограничения и «не измерено» остаются в силе; см. [2.3.0] и «Известные ограничения».
+
 ## [2.3.0] — 2026-11-27 (ветка `arena/00de572b-omnia-v-core`)
 
 ### Протокол (shared/omnia_protocol.h)
