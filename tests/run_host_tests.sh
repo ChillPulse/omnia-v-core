@@ -33,6 +33,10 @@ gcc -O3 -ffast-math -Wall -Wextra -Werror -Ishared -Isrc/at32/include \
   tests/test_dsp_quality.c src/at32/dsp_engine.c src/at32/dsp_validation.c -lm -o /tmp/omnia-test-quality-fast
 /tmp/omnia-test-quality-fast
 
+echo "== Host: encoder anti-skip =="
+gcc -O2 -Wall -Wextra -Werror -Ishared tests/test_encoder.c -o /tmp/omnia-test-encoder
+/tmp/omnia-test-encoder
+
 echo "== Host: control policy =="
 gcc -O3 -ffast-math -Wall -Wextra -Werror -Ishared -Isrc/at32/include \
   tests/test_control_policy.c -o /tmp/omnia-test-policy

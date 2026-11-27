@@ -7,6 +7,7 @@
 #include "omnia_at32.h"
 #include "omnia_control_policy.h"
 #include "omnia_dsp_validation.h"
+#include "omnia_fw_version.h"
 #include <string.h>
 
 #define UART_RX_DMA_RING_SIZE   1024U
@@ -140,9 +141,11 @@ static void send_sys_info(uint8_t seq)
     const omnia_spi_flash_info_t *fl = omnia_ext_flash_get_info();
     omnia_sys_info_t info;
     memset(&info, 0, sizeof(info));
-    info.fw_major          = 2U;
-    info.fw_minor          = 3U;   /* 2.3.0: factory AETHER, RESET_DC_FAULT, BIT_ROOM_DELAY */
-    info.fw_patch          = 0U;
+    info.fw_major          = (uint8_t)OMNIA_FW_MAJOR;
+    info.fw_minor          = (uint8_t)OMNIA_FW_MINOR;
+    info.fw_patch          = (uint8_t)OMNIA_FW_PATCH;
+    /* OMNIA_FW_GIT_DESCRIBE/OMNIA_FW_GIT_BUILD: git-derived диагностика (pio_fw_version.py),
+     * по проводу не уходит; wire format SYS_INFO не меняем. */
     info.ext_flash_present = (fl && fl->present) ? 1U : 0U;  /* 0/1-флаг присутствия, не bus_type! */
     info.sram_size_kb      = omnia_get_sram_size_kb();
     info.sysclk_hz         = system_core_clock;

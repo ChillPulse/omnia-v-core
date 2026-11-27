@@ -645,6 +645,128 @@ static void test_factory_aether_presets(void)
     printf("[OK] Невалидный слот пресета отклонён\n");
 }
 
+
+/* ---------- 14. Anti-click: рампа коэффициентов PEQ при ретюне уже играющей полосы ---------- */
+/* Реалистичный случай drag-настройки: полоса активна, состояние биквада нагружено,
+ * пользователь перетягивает частоту/добротность/усиление. Рампа (~5 мс) должна звучать
+ * заметно плавнее мгновенного переключения коэффициентов. */
+static double render_retune(bool ramp, double *boundary_out)
+{
+    static omnia_dsp_delay_arena_t arena;
+    static omnia_dsp_ctx_t dsp;
+    omnia_dsp_init(&dsp, &arena, FS);
+    omnia_dsp_set_mute(&dsp, false, 0U);
+    omnia_dsp_set_volume(&dsp, 0.0f, 0.0f, 0.0f, 0U);
+    omnia_dsp_set_bypass_mask(&dsp, OMNIA_DSP_BIT_USER_PEQ, 0U);
+    dsp.limiter_cfg.enable = 0U; /* иначе clamp маскирует эффект */
+    omnia_dsp_apply_limiter(&dsp, &dsp.limiter_cfg);
+
+    static omnia_user_peq_t peq;
+    memset(&peq, 0, sizeof(peq));
+    peq.enable = 1U;
+    peq.band_count = 1U;
+    peq.bands[0].type = OMNIA_BIQUAD_PEAK;
+    peq.bands[0].f0_hz = 1000.0f;
+    peq.bands[0].q = 4.0f;
+    peq.bands[0].gain_db = -15.0f;
+    omnia_dsp_apply_user_peq(&dsp, &peq); /* включаем ДО сигнала: полоса играет */
+
+    const double step = 2.0 * M_PI * 1000.0 / (double)FS;
+    double ph = 0.0, prev = 0.0;
+    int have_prev = 0;
+    double boundary = 0.0;
+    for (unsigned b = 0; b < 12U; ++b) {
+        static int32_t blk[FRAMES * 2];
+        for (size_t f = 0; f < FRAMES; ++f) {
+            const double s = 0.5 * sin(ph);
+            ph += step;
+            blk[f * 2U] = (int32_t)(s * 2147483647.0);
+            blk[f * 2U + 1U] = blk[f * 2U];
+        }
+        if (b == 10U) { /* ретюн: 700 Гц, +12 дБ, Q=4 */
+            static omnia_user_peq_t retune;
+            memset(&retune, 0, sizeof(retune));
+            retune.enable = 1U;
+            retune.band_count = 1U;
+            retune.bands[0].type = OMNIA_BIQUAD_PEAK;
+            retune.bands[0].f0_hz = 700.0f;
+            retune.bands[0].q = 4.0f;
+            retune.bands[0].gain_db = 12.0f;
+            dsp.coeff_ramp_enable = ramp;
+            omnia_dsp_apply_user_peq(&dsp, &retune);
+            dsp.coeff_ramp_enable = true;
+        }
+        int32_t out[FRAMES * 2];
+        omnia_dsp_process_block_i32(&dsp, blk, out, FRAMES);
+        if (b == 10U) {
+            for (size_t f = 0; f < 16U; ++f) {
+                const double cur = (double)out[f * 2U] / 2147483648.0;
+                if (have_prev) {
+                    const double d = fabs(cur - prev);
+                    if (d > boundary) boundary = d;
+                }
+                prev = cur;
+                have_prev = 1;
+            }
+        }
+    }
+    /* рампа завершилась точно в цели */
+    assert(dsp.user_biquads[0].ramp_left == 0U);
+    assert(dsp.user_biquads[0].b0 == dsp.user_biquads[0].tb0);
+    assert(dsp.user_biquads[0].a2 == dsp.user_biquads[0].ta2);
+    *boundary_out = boundary;
+    return boundary;
+}
+
+static void test_peq_ramp_anti_click(void)
+{
+    double boundary_ramp = 0.0, boundary_instant = 0.0;
+    render_retune(true,  &boundary_ramp);
+    render_retune(false, &boundary_instant);
+    printf("[RAMP] retune-ретюн полосы: max |delta| за 16 отсчётов: ramp=%.6f, instant=%.6f\n",
+           boundary_ramp, boundary_instant);
+    assert(isfinite(boundary_ramp) && isfinite(boundary_instant));
+    assert(boundary_ramp * 2.0 < boundary_instant); /* рампа минимум вдвое плавнее скачка */
+    printf("[OK] Рампа коэффициентов PEQ при ретюне: щелчок устранён (2x+)\n");
+}
+
+/* ---------- 15. Limiter v2.4: детектор суб-сэмплового true-peak включён на ВЧ-пиках ---------- */
+static void test_limiter_true_peak_hf(void)
+{
+    static omnia_dsp_delay_arena_t arena;
+    static omnia_dsp_ctx_t dsp;
+    omnia_dsp_init(&dsp, &arena, FS);
+    omnia_dsp_set_mute(&dsp, false, 0U);
+    omnia_dsp_set_volume(&dsp, 0.0f, 0.0f, 0.0f, 0U);
+    omnia_dsp_set_bypass_mask(&dsp, OMNIA_DSP_BIT_LIMITER, 0U);
+
+    /* 12 кГц, фаза пи/8: сэмплы НИКОГДА не достают гребень синусоиды
+     * (max сэмплa ≈ 0.924·A), суб-сэмпловый гребень ≈ A.
+     * A = 0.975: сэмплы 0.901 < ceiling(-0.8 dBFS ≈ 0.912), гребень выше потолка. */
+    double ph = M_PI / 8.0;
+    const double step = 2.0 * M_PI * 12000.0 / (double)FS;
+    static int32_t blk[FRAMES * 2];
+    float sample_peak = 0.0f;
+    for (unsigned b = 0; b < 8U; ++b) {
+        for (size_t f = 0; f < FRAMES; ++f) {
+            const double s = 0.975 * sin(ph);
+            ph += step;
+            blk[f * 2U] = (int32_t)(s * 2147483647.0);
+            blk[f * 2U + 1U] = blk[f * 2U];
+            const float a = fabsf((float)s);
+            if (a > sample_peak) sample_peak = a;
+        }
+        int32_t out[FRAMES * 2];
+        omnia_dsp_process_block_i32(&dsp, blk, out, FRAMES);
+    }
+    const float ceiling = (float)pow(10.0, -0.8 / 20.0);
+    printf("[TRUE-PEAK] sample_peak=%.4f ceiling=%.4f min_limiter_gain=%.4f\n",
+           sample_peak, ceiling, dsp.min_limiter_gain);
+    assert(sample_peak < ceiling);            /* сэмплы под потолком: обычный пиковый детектор молчал бы */
+    assert(dsp.min_limiter_gain < 0.999f);    /* TP-детектор сработал и давил гребень */
+    printf("[OK] Limiter true-peak (Catmull-Rom, аналитический максимум): ВЧ гребни под потолком\n");
+}
+
 /* ---------- 13. Валидация новых команд ---------- */
 static void test_new_command_validation(void)
 {
@@ -673,6 +795,8 @@ int main(void)
     test_room_delay_cubic_hf();
     test_ab_compare_rms_match();
     test_factory_aether_presets();
+    test_peq_ramp_anti_click();
+    test_limiter_true_peak_hf();
     test_new_command_validation();
     printf("=== ВСЕ КАЧЕСТВЕННЫЕ ТЕСТЫ ПРОЙДЕНЫ ===\n");
     return 0;

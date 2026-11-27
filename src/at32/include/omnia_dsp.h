@@ -23,13 +23,20 @@ extern "C" {
 #define OMNIA_AETHER_MAX_DELAY_SAMPLES  640U    /* До ~13.3 мс стерео/сайд сцены при 48 кГц */
 #define OMNIA_LIMITER_MAX_LOOKAHEAD     160U    /* До ~3.33 мс упреждения пиков при 48 кГц */
 
-/* Внутреннее состояние биквадного фильтра Direct Form II Transposed */
+/* Внутреннее состояние биквадного фильтра Direct Form II Transposed.
+ * Коэффициенты могут плавно доводиться до цели (ramp) — см. omnia_dsp_ctx_t::coeff_ramp_enable.
+ * sb* — старты ramp'а (текущее значение на момент постановки цели), tb* — цели. */
 typedef struct {
     float b0, b1, b2;
     float a1, a2;
     float z1_l, z2_l;
     float z1_r, z2_r;
     bool  bypass;
+    float sb0, sb1, sb2, sa1, sa2;   /* старты интерполяции */
+    float tb0, tb1, tb2, ta1, ta2;   /* цели интерполяции   */
+    uint16_t ramp_left;              /* отсчётов до конца рампы; 0 = рампы нет */
+    uint16_t ramp_total;             /* длительность текущей рампы в отсчётах */
+    uint16_t _reserved;
 } omnia_biquad_state_t;
 
 /* Внешняя арена буферов задержки (передаётся из .sram_ext на AT32 или статики в тестах) */
@@ -52,6 +59,11 @@ typedef struct {
     bool     muted;
     bool     ab_compare_bypass;
     bool     bit_perfect_active;
+    /* false внутри omnia_dsp_reset_states/omnia_dsp_init (мгновенный пересчёт без рампы);
+     * true после завершения init/set_sample_rate: последующие пересчёты коэффициентов
+     * (recalc_all_coefficients) доводят биквады рампой ~5 мс вместо мгновенной подстановки
+     * (anti-click при drag-настройке PEQ). Bypass→enable звена рампой НЕ идёт (identity snap). */
+    bool     coeff_ramp_enable;
 
     /* Плавный регулятор громкости и анти-поп рампы */
     float    target_vol_db;
@@ -134,6 +146,11 @@ typedef struct {
     uint16_t               limiter_wr_idx;
     uint16_t               limiter_delay_len;
     uint32_t               prng_state;
+    /* Оценка суб-сэмплового (true) пика: хвост последних 3 отсчётов на канал
+     * (+ текущий отсчёт как правый сосед). Интерполяция Catmull-Rom оценивает пик
+     * между отсчётами; ограничение: кубическая оценка, не polyphase 4x. */
+    float                  tp_hist_l[4];   /* [0..2] используются, [3] зарезервирован */
+    float                  tp_hist_r[4];
 
     /* Детектор постоянки (DC Fault Guard) и пикметры */
     float                  dc_track_l;

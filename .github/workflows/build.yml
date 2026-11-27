@@ -31,6 +31,29 @@ jobs:
           echo "== analyzer: src/at32/spi_flash_sfdp.c (stubs HAL) =="
           gcc -O2 -Wall -Wextra -fanalyzer -Itests/stubs -Ishared -c src/at32/spi_flash_sfdp.c -o /tmp/spi_flash_sfdp.o
 
+  cppcheck:
+    name: Static Analysis (cppcheck 2.22.0, via PyPI wheel)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install cppcheck from PyPI (no root required)
+        run: pip install --no-cache-dir cppcheck==1.5.3
+      - name: cppcheck all host-buildable units
+        run: |
+          set -e
+          CPPCHECK="$(python -c 'import cppcheck, pathlib; print(pathlib.Path(cppcheck.__file__).parent / "Cppcheck" / "cppcheck")')"
+          echo "using $CPPCHECK"
+          "$CPPCHECK" --version
+          for f in src/at32/dsp_engine.c src/at32/asrc_farrow.c src/at32/dsp_validation.c src/esp32/bench_command.c src/esp32/ir_nec.c shared/omnia_encoder.h; do
+            echo "== cppcheck: $f =="
+            "$CPPCHECK" --enable=warning,performance,portability --std=c11 -Ishared -Isrc/at32/include -Isrc/esp32/include --error-exitcode=1 --inline-suppr "$f"
+          done
+          echo "== cppcheck: src/at32/spi_flash_sfdp.c (stubs HAL) =="
+          "$CPPCHECK" --enable=warning,performance,portability --std=c11 -Itests/stubs -Ishared --error-exitcode=1 --inline-suppr src/at32/spi_flash_sfdp.c
+
   build-at32-dsp:
     name: Build AT32F403ACGU7 Studio DSP (PlatformIO)
     runs-on: ubuntu-latest
