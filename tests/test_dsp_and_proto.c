@@ -258,7 +258,8 @@ static void test_room_speaker_delay_and_phase(void)
     dsp.limiter_cfg.tpdf_dither_en = 0U;
 
     /* Настраиваем рум-коррекцию: задержка левой АС = 0.25 мс (ровно 12.0 сэмплов @ 48 кГц),
-     * правая АС = 0.00 мс, но с переворотом фазы 180° (invert_phase_r = 1) */
+     * правая АС = 0.00 мс, но с переворотом фазы 180° (invert_phase_r = 1).
+     * Тайм-алайн с v2.3.0 — отдельный блок OMNIA_DSP_BIT_ROOM_DELAY (независимо от Room PEQ). */
     omnia_room_peq_t room = {0};
     room.enable         = 1U;
     room.band_count     = 0U;
@@ -267,7 +268,7 @@ static void test_room_speaker_delay_and_phase(void)
     room.invert_phase_l = 0U;
     room.invert_phase_r = 1U;
     omnia_dsp_apply_room_peq(&dsp, &room);
-    omnia_dsp_set_bypass_mask(&dsp, OMNIA_DSP_BIT_ROOM_PEQ, 0U);
+    omnia_dsp_set_bypass_mask(&dsp, OMNIA_DSP_BIT_ROOM_DELAY, 0U);
 
     /* Даём параметрам задержки и фазы плавно установиться на тишине */
     int32_t zero_blk[128] = {0};

@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "omnia_protocol.h"
+#include "omnia_limits.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,12 +33,16 @@ typedef struct {
 } omnia_biquad_state_t;
 
 /* Внешняя арена буферов задержки (передаётся из .sram_ext на AT32 или статики в тестах) */
+#define OMNIA_XFEED_DELAY_MAX_SAMPLES  (32U)   /* >= 25 отсчётов для 260 мкс @ 96 кГц */
+
 typedef struct {
     float room_delay_l[OMNIA_ROOM_DELAY_RING_SIZE];
     float room_delay_r[OMNIA_ROOM_DELAY_RING_SIZE];
     float aether_delay_line[OMNIA_AETHER_MAX_DELAY_SAMPLES];
     float limiter_buf_l[OMNIA_LIMITER_MAX_LOOKAHEAD];
     float limiter_buf_r[OMNIA_LIMITER_MAX_LOOKAHEAD];
+    float xfeed_delay_l[OMNIA_XFEED_DELAY_MAX_SAMPLES];  /* Bauer Crossfeed ~260 мкс */
+    float xfeed_delay_r[OMNIA_XFEED_DELAY_MAX_SAMPLES];
 } omnia_dsp_delay_arena_t;
 
 /* Полный контекст студийного DSP-тракта */
@@ -50,6 +55,7 @@ typedef struct {
 
     /* Плавный регулятор громкости и анти-поп рампы */
     float    target_vol_db;
+    float    current_vol_db;    /* Сглаженное отображаемое значение (телеметрия) */
     float    replaygain_db;
     float    balance;
     float    current_gain_l;
@@ -95,19 +101,21 @@ typedef struct {
     omnia_biquad_state_t vbb_extract_lp;
     omnia_biquad_state_t vbb_harm_lp;
     omnia_biquad_state_t vbb_dc_hp;
+    omnia_biquad_state_t vbb_shelf;     /* Режим 0 "Clean Shelf": настоящая НЧ-полка */
 
     /* 7. Studio AETHER Processor («Эфир») */
     omnia_aether_params_t aether_cfg;
     float                 aether_blend_cur;
     float                 aether_width_cur;
     float                 aether_center_gain;
-    omnia_biquad_state_t  aether_bass_lp;   /* Моно-замок НЧ в S-канале */
+    omnia_biquad_state_t  aether_bass_hp;   /* Моно-замок НЧ в S-канале: честный ФВЧ 2-го порядка (side - LP(side) давал бы фазовую ошибку ~ fj/fc -> -19 дБ вместо -32 дБ) */
     omnia_biquad_state_t  aether_side_hp;   /* Очистка S-канала */
     omnia_biquad_state_t  aether_air_hs;    /* Полка шёлкового воздуха */
     float                 deharsh_env;      /* Детектор сибилянтов ВЧ */
     float                 ap_z1, ap_z2;     /* Каскад фазовых All-Pass декорреляторов */
     float                 triode_dc_l, triode_dc_r;
     float                 xfeed_lp_l, xfeed_lp_r;
+    uint16_t              xfeed_wr_idx;     /* Кольцевой индекс линии задержки кроссфида */
     uint16_t              aether_wr_idx;
     uint16_t              aether_delay_len;
 
@@ -140,6 +148,28 @@ typedef struct {
 } omnia_dsp_ctx_t;
 
 /* --- API управления и обработки --- */
+/* Внутреннее: экспортировано для хост-тестов (стабильность полюсов). Не использовать вне тестов/движка. */
+void omnia_dsp_biquad_design(
+    omnia_biquad_state_t *st,
+    omnia_biquad_type_t   type,
+    uint32_t              fs_hz,
+    float                 f0_hz,
+    float                 q,
+    float                 gain_db);
+
+/**
+ * @brief  Заводской пресет Эфира по индексу 0..6 (ТЗ §4.2.8). Включение только в RAM, без Flash.
+ * @return false при slot >= 7 (ctx не изменяется).
+ */
+bool omnia_dsp_load_aether_factory(omnia_dsp_ctx_t *ctx, uint8_t slot);
+
+/**
+ * @brief  Сервисный сброс аварийной защиты от постоянки (DC Guard) и счётчика клипов.
+ *         Вызывается по команде RESET_DC_FAULT; громкость не поднимается, пока
+ *         gain- цели не восстановлены и muted актуален.
+ */
+void omnia_dsp_reset_dc_fault(omnia_dsp_ctx_t *ctx);
+
 void omnia_dsp_init(omnia_dsp_ctx_t *ctx, omnia_dsp_delay_arena_t *arena, uint32_t sample_rate_hz);
 void omnia_dsp_set_sample_rate(omnia_dsp_ctx_t *ctx, uint32_t sample_rate_hz);
 void omnia_dsp_reset_states(omnia_dsp_ctx_t *ctx);
@@ -160,8 +190,9 @@ void omnia_dsp_apply_limiter(omnia_dsp_ctx_t *ctx, const omnia_limiter_params_t 
 
 /**
  * @brief  Обрабатывает блок стерео-сэмплов (32-bit signed PCM, выровненный по старшему биту I2S).
- *         Если включён чистый обход (active_mask == 0, !muted, vol == 0 dB, gain settled),
- *         выполняет математически точное 1:1 копирование целых чисел (Bit-Perfect Direct).
+ *         Bit-Perfect Direct (active_mask == 0, !muted, vol == 0 dB, gain осели) копирует int32 1:1.
+ *         ВНИМАНИЕ: в Bit-Perfect лимитер/DC-guard НЕ работают — это строгая трактовка bit-perfect.
+ *         Дефолтная маска из коробки = SUBSONIC_HPF | LIMITER (безопасность). Bit-perfect — явный выбор.
  */
 void omnia_dsp_process_block_i32(
     omnia_dsp_ctx_t *ctx,
