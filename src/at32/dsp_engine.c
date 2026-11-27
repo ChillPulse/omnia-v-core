@@ -7,12 +7,55 @@
 #include <math.h>
 #include <string.h>
 
+/* --- Критические секции: движок вызывается из ISR (I2S DMA half/full), а настройки
+ *     применяются из задачи UART. cpsid/cpsie на Cortex-M4 маскируют прерывания на
+ *     микросекунды; на хосте (тесты) — пустые. См. docs/CONCURRENCY_MODEL_RU.md --- */
+/* Вложенность учитывается счётчиком: конфигурационные функции вызывают друг
+ * друга (init -> reset_states -> recalc), а cpsid/cpsie не являются вложенными.
+ * Счётчик трогается только из задачного контекста (конфигурации), ISR его не использует. */
+static uint32_t s_dsp_crit_depth = 0U;
+#if defined(__arm__) || defined(__ARM_ARCH)
+static inline void dsp_enter_critical(void)
+{
+    if (s_dsp_crit_depth++ == 0U) { __asm volatile ("cpsid i" ::: "memory"); }
+}
+static inline void dsp_exit_critical(void)
+{
+    if (--s_dsp_crit_depth == 0U) { __asm volatile ("cpsie i" ::: "memory"); }
+}
+#else
+static inline void dsp_enter_critical(void) { s_dsp_crit_depth++; }
+static inline void dsp_exit_critical(void)  { s_dsp_crit_depth--; }
+#endif
+
+/* Безопасное округление float -> int32 c насыщением.
+ * Умножение в double: у самой полной шкалы float не может удержать 2^31-1,
+ * поэтому в float максимум ошибки квантования достигал ~127 LSB.
+ * 128 double-умножений на блок — пренебрежимо даже на Cortex-M4F (soft-fp). */
+static inline int32_t float_to_i32_sat(float x)
+{
+    const double v = (double)x * 2147483647.0;
+    if (v >= 2147483520.0) { return 2147483520; }
+    if (v <= -2147483648.0) { return (-2147483647 - 1); }
+    return (int32_t)lrint(v);
+}
+
+/* Кубическая интерполяция Catmull-Rom (как в ASRC Farrow): плоская |H(ejw)| на ВЧ,
+ * в отличие от линейной (2-отводного фильтра), не режет ВЧ ступенью. */
+static inline float cubic_catmull_rom(float ym1, float y0, float y1, float y2, float mu)
+{
+    const float c0 = y0;
+    const float c1 = 0.5f * (y1 - ym1);
+    const float c2 = ym1 - 2.5f * y0 + 2.0f * y1 - 0.5f * y2;
+    const float c3 = 0.5f * (y2 - ym1) + 1.5f * (y0 - y1);
+    return ((c3 * mu + c2) * mu + c1) * mu + c0;
+}
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
 #define DSP_NORM_TO_FLOAT       (1.0f / 2147483648.0f)  /* int32 full-scale -> [-1.0, +1.0) */
-#define DSP_SCALE_TO_INT32      (2147483647.0f)
 #define DSP_ANTI_DENORMAL       (1.0e-24f)
 
 /* --- Вспомогательная математика --- */
@@ -79,7 +122,7 @@ static void biquad_reset_z(omnia_biquad_state_t *st)
     st->z2_r = 0.0f;
 }
 
-static void biquad_design(
+void omnia_dsp_biquad_design(
     omnia_biquad_state_t *st,
     omnia_biquad_type_t   type,
     uint32_t              fs_hz,
@@ -105,8 +148,8 @@ static void biquad_design(
 
     const float fs   = (float)fs_hz;
     const float f0   = clampf(f0_hz, 12.0f, fs * 0.46f);
-    const float qval = clampf(q, 0.12f, 20.0f);
-    const float gdb  = clampf(gain_db, -24.0f, 24.0f);
+    const float qval = clampf(q, OMNIA_BAND_Q_MIN, OMNIA_BAND_Q_MAX);
+    const float gdb  = clampf(gain_db, OMNIA_BAND_GAIN_MIN_DB, OMNIA_BAND_GAIN_MAX_DB);
 
     const float w0    = (2.0f * (float)M_PI * f0) / fs;
     const float cosw0 = cosf(w0);
@@ -233,7 +276,7 @@ static inline float biquad_step_mono_l(omnia_biquad_state_t *st, float x)
 /* --- Авторасчёт запаса по перегрузке (Dynamic Headroom) --- */
 static void update_headroom_gain(omnia_dsp_ctx_t *ctx)
 {
-    float atten_db = clampf(ctx->hpf_cfg.manual_atten_db, -24.0f, 0.0f);
+    float atten_db = clampf(ctx->hpf_cfg.manual_atten_db, OMNIA_HPF_MANUAL_ATTEN_MIN_DB, OMNIA_HPF_MANUAL_ATTEN_MAX_DB);
 
     if (ctx->hpf_cfg.auto_headroom_en) {
         float max_boost_db = 0.0f;
@@ -283,11 +326,11 @@ static void update_loudness_filters(omnia_dsp_ctx_t *ctx)
 
     /* Плавная кривая ISO 226: полный подъём достигается при убавлении на 36 дБ ниже референса */
     const float ratio    = clampf(deficit_db / 36.0f, 0.0f, 1.0f);
-    const float low_db   = ratio * clampf(ctx->loudness_cfg.max_bass_boost_db, 0.0f, 12.0f);
-    const float high_db  = ratio * clampf(ctx->loudness_cfg.max_high_boost_db, 0.0f, 6.0f);
+    const float low_db   = ratio * clampf(ctx->loudness_cfg.max_bass_boost_db, OMNIA_LOUD_MAX_BASS_MIN_DB, OMNIA_LOUD_MAX_BASS_MAX_DB);
+    const float high_db  = ratio * clampf(ctx->loudness_cfg.max_high_boost_db, OMNIA_LOUD_MAX_HIGH_MIN_DB, OMNIA_LOUD_MAX_HIGH_MAX_DB);
 
-    biquad_design(&ctx->loudness_low_ls,  OMNIA_BIQUAD_LOW_SHELF,  ctx->sample_rate_hz, 75.0f,   0.707f, low_db);
-    biquad_design(&ctx->loudness_high_hs, OMNIA_BIQUAD_HIGH_SHELF, ctx->sample_rate_hz, 9500.0f, 0.707f, high_db);
+    omnia_dsp_biquad_design(&ctx->loudness_low_ls,  OMNIA_BIQUAD_LOW_SHELF,  ctx->sample_rate_hz, 75.0f,   0.707f, low_db);
+    omnia_dsp_biquad_design(&ctx->loudness_high_hs, OMNIA_BIQUAD_HIGH_SHELF, ctx->sample_rate_hz, 9500.0f, 0.707f, high_db);
 }
 
 static void update_volume_targets(omnia_dsp_ctx_t *ctx, uint16_t ramp_ms)
@@ -311,7 +354,7 @@ static void update_volume_targets(omnia_dsp_ctx_t *ctx, uint16_t ramp_ms)
 static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
 {
     /* 1. Subsonic HPF */
-    biquad_design(&ctx->subsonic_biquad,
+    omnia_dsp_biquad_design(&ctx->subsonic_biquad,
                   ctx->hpf_cfg.hpf_enable ? OMNIA_BIQUAD_HIGH_PASS : OMNIA_BIQUAD_OFF,
                   ctx->sample_rate_hz, ctx->hpf_cfg.hpf_freq_hz, ctx->hpf_cfg.hpf_q, 0.0f);
 
@@ -319,7 +362,7 @@ static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
     for (uint8_t i = 0; i < OMNIA_MAX_ROOM_PEQ_BANDS; ++i) {
         if (ctx->room_cfg.enable && i < ctx->room_cfg.band_count) {
             const omnia_biquad_band_t *b = &ctx->room_cfg.bands[i];
-            biquad_design(&ctx->room_biquads[i], (omnia_biquad_type_t)b->type,
+            omnia_dsp_biquad_design(&ctx->room_biquads[i], (omnia_biquad_type_t)b->type,
                           ctx->sample_rate_hz, b->f0_hz, b->q, b->gain_db);
         } else {
             ctx->room_biquads[i].bypass = true;
@@ -341,7 +384,7 @@ static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
     for (uint8_t i = 0; i < OMNIA_MAX_USER_PEQ_BANDS; ++i) {
         if (ctx->user_cfg.enable && i < ctx->user_cfg.band_count) {
             const omnia_biquad_band_t *b = &ctx->user_cfg.bands[i];
-            biquad_design(&ctx->user_biquads[i], (omnia_biquad_type_t)b->type,
+            omnia_dsp_biquad_design(&ctx->user_biquads[i], (omnia_biquad_type_t)b->type,
                           ctx->sample_rate_hz, b->f0_hz, b->q, b->gain_db);
         } else {
             ctx->user_biquads[i].bypass = true;
@@ -349,34 +392,37 @@ static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
     }
 
     /* 5. Anti-Ad */
-    ctx->agc_makeup_lin = db_to_lin(clampf(ctx->anti_ad_cfg.makeup_db, 0.0f, 9.0f));
+    ctx->agc_makeup_lin = db_to_lin(clampf(ctx->anti_ad_cfg.makeup_db, OMNIA_ANTI_AD_MAKEUP_MIN_DB, OMNIA_ANTI_AD_MAKEUP_MAX_DB));
 
     /* 6. VBB Bass */
     if (ctx->vbb_cfg.enable) {
-        biquad_design(&ctx->vbb_extract_lp, OMNIA_BIQUAD_LOW_PASS,
-                      ctx->sample_rate_hz, clampf(ctx->vbb_cfg.freq_hz, 35.0f, 130.0f), 0.75f, 0.0f);
-        biquad_design(&ctx->vbb_harm_lp, OMNIA_BIQUAD_LOW_PASS,
-                      ctx->sample_rate_hz, clampf(ctx->vbb_cfg.lowpass_hz, 80.0f, 260.0f), 0.707f, 0.0f);
-        biquad_design(&ctx->vbb_dc_hp, OMNIA_BIQUAD_HIGH_PASS,
+        omnia_dsp_biquad_design(&ctx->vbb_shelf, OMNIA_BIQUAD_LOW_SHELF,
+                      ctx->sample_rate_hz, 105.0f, 0.707f,
+                      clampf(ctx->vbb_cfg.amount, 0.0f, 1.0f) * 4.5f);
+        omnia_dsp_biquad_design(&ctx->vbb_extract_lp, OMNIA_BIQUAD_LOW_PASS,
+                      ctx->sample_rate_hz, clampf(ctx->vbb_cfg.freq_hz, OMNIA_VBB_FREQ_MIN_HZ, OMNIA_VBB_FREQ_MAX_HZ), 0.75f, 0.0f);
+        omnia_dsp_biquad_design(&ctx->vbb_harm_lp, OMNIA_BIQUAD_LOW_PASS,
+                      ctx->sample_rate_hz, clampf(ctx->vbb_cfg.lowpass_hz, OMNIA_VBB_LP_MIN_HZ, OMNIA_VBB_LP_MAX_HZ), 0.707f, 0.0f);
+        omnia_dsp_biquad_design(&ctx->vbb_dc_hp, OMNIA_BIQUAD_HIGH_PASS,
                       ctx->sample_rate_hz, 28.0f, 0.707f, 0.0f);
     }
 
     /* 7. Studio AETHER */
-    ctx->aether_center_gain = db_to_lin(clampf(ctx->aether_cfg.center_anchor_db, -6.0f, 6.0f));
-    biquad_design(&ctx->aether_bass_lp,
-                  ctx->aether_cfg.bass_keep_mono ? OMNIA_BIQUAD_LOW_PASS : OMNIA_BIQUAD_OFF,
-                  ctx->sample_rate_hz, clampf(ctx->aether_cfg.bass_xover_hz, 40.0f, 250.0f), 0.707f, 0.0f);
-    biquad_design(&ctx->aether_side_hp,
+    ctx->aether_center_gain = db_to_lin(clampf(ctx->aether_cfg.center_anchor_db, OMNIA_AETHER_CENTER_MIN_DB, OMNIA_AETHER_CENTER_MAX_DB));
+    omnia_dsp_biquad_design(&ctx->aether_bass_hp,
+                  ctx->aether_cfg.bass_keep_mono ? OMNIA_BIQUAD_HIGH_PASS : OMNIA_BIQUAD_OFF,
+                  ctx->sample_rate_hz, clampf(ctx->aether_cfg.bass_xover_hz, OMNIA_AETHER_BASS_XOVER_MIN, OMNIA_AETHER_BASS_XOVER_MAX), 0.7071f, 0.0f);
+    omnia_dsp_biquad_design(&ctx->aether_side_hp,
                   ctx->aether_cfg.side_hpf_en ? OMNIA_BIQUAD_HIGH_PASS : OMNIA_BIQUAD_OFF,
-                  ctx->sample_rate_hz, clampf(ctx->aether_cfg.side_hpf_hz, 20.0f, 180.0f), 0.707f, 0.0f);
-    biquad_design(&ctx->aether_air_hs,
+                  ctx->sample_rate_hz, clampf(ctx->aether_cfg.side_hpf_hz, OMNIA_AETHER_SIDE_HPF_MIN, OMNIA_AETHER_SIDE_HPF_MAX), 0.707f, 0.0f);
+    omnia_dsp_biquad_design(&ctx->aether_air_hs,
                   (ctx->aether_cfg.air_gain_db > 0.05f) ? OMNIA_BIQUAD_HIGH_SHELF : OMNIA_BIQUAD_OFF,
                   ctx->sample_rate_hz,
-                  clampf(ctx->aether_cfg.air_freq_hz, 5500.0f, 16000.0f),
-                  clampf(ctx->aether_cfg.air_q, 0.4f, 1.6f),
-                  clampf(ctx->aether_cfg.air_gain_db, 0.0f, 8.0f));
+                  clampf(ctx->aether_cfg.air_freq_hz, OMNIA_AETHER_AIR_FREQ_MIN, OMNIA_AETHER_AIR_FREQ_MAX),
+                  clampf(ctx->aether_cfg.air_q, OMNIA_AETHER_AIR_Q_MIN, OMNIA_AETHER_AIR_Q_MAX),
+                  clampf(ctx->aether_cfg.air_gain_db, OMNIA_AETHER_AIR_GAIN_MIN_DB, OMNIA_AETHER_AIR_GAIN_MAX_DB));
 
-    uint32_t d_samp = (uint32_t)(((float)ctx->sample_rate_hz * clampf(ctx->aether_cfg.stage_size_ms, 0.5f, 12.0f)) * 0.001f);
+    uint32_t d_samp = (uint32_t)(((float)ctx->sample_rate_hz * clampf(ctx->aether_cfg.stage_size_ms, OMNIA_AETHER_STAGE_MIN_MS, OMNIA_AETHER_STAGE_MAX_MS)) * 0.001f);
     if (d_samp < 8U) {
         d_samp = 8U;
     }
@@ -386,9 +432,9 @@ static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
     ctx->aether_delay_len = (uint16_t)d_samp;
 
     /* 9. Safety Limiter */
-    ctx->limiter_ceiling_lin = db_to_lin(clampf(ctx->limiter_cfg.ceiling_dbfs, -6.0f, -0.1f));
-    ctx->limiter_rel_coeff   = calc_slew_coeff(ctx->sample_rate_hz, clampf(ctx->limiter_cfg.release_ms, 20.0f, 600.0f));
-    uint32_t la_samp = (uint32_t)(((float)ctx->sample_rate_hz * clampf(ctx->limiter_cfg.lookahead_ms, 0.2f, 3.0f)) * 0.001f);
+    ctx->limiter_ceiling_lin = db_to_lin(clampf(ctx->limiter_cfg.ceiling_dbfs, OMNIA_LIM_CEILING_MIN_DBFS, OMNIA_LIM_CEILING_MAX_DBFS));
+    ctx->limiter_rel_coeff   = calc_slew_coeff(ctx->sample_rate_hz, clampf(ctx->limiter_cfg.release_ms, OMNIA_LIM_RELEASE_MIN_MS, OMNIA_LIM_RELEASE_MAX_MS));
+    uint32_t la_samp = (uint32_t)(((float)ctx->sample_rate_hz * clampf(ctx->limiter_cfg.lookahead_ms, OMNIA_LIM_LOOKAHEAD_MIN_MS, OMNIA_LIM_LOOKAHEAD_MAX_MS)) * 0.001f);
     if (la_samp < 4U) {
         la_samp = 4U;
     }
@@ -407,6 +453,7 @@ static void recalc_all_coefficients(omnia_dsp_ctx_t *ctx)
 
 void omnia_dsp_reset_states(omnia_dsp_ctx_t *ctx)
 {
+    dsp_enter_critical();
     biquad_reset_z(&ctx->subsonic_biquad);
     for (uint8_t i = 0; i < OMNIA_MAX_ROOM_PEQ_BANDS; ++i) {
         biquad_reset_z(&ctx->room_biquads[i]);
@@ -417,7 +464,8 @@ void omnia_dsp_reset_states(omnia_dsp_ctx_t *ctx)
     biquad_reset_z(&ctx->vbb_extract_lp);
     biquad_reset_z(&ctx->vbb_harm_lp);
     biquad_reset_z(&ctx->vbb_dc_hp);
-    biquad_reset_z(&ctx->aether_bass_lp);
+    biquad_reset_z(&ctx->vbb_shelf);
+    biquad_reset_z(&ctx->aether_bass_hp);
     biquad_reset_z(&ctx->aether_side_hp);
     biquad_reset_z(&ctx->aether_air_hs);
     biquad_reset_z(&ctx->loudness_low_ls);
@@ -431,6 +479,8 @@ void omnia_dsp_reset_states(omnia_dsp_ctx_t *ctx)
     ctx->triode_dc_r   = 0.0f;
     ctx->xfeed_lp_l    = 0.0f;
     ctx->xfeed_lp_r    = 0.0f;
+    ctx->xfeed_wr_idx  = 0U;
+    ctx->current_vol_db = ctx->target_vol_db;
     ctx->limiter_env       = 1.0f;
     ctx->limiter_hold_gain = 1.0f;
     ctx->limiter_hold_cnt  = 0U;
@@ -443,16 +493,22 @@ void omnia_dsp_reset_states(omnia_dsp_ctx_t *ctx)
     if (ctx->arena) {
         memset(ctx->arena, 0, sizeof(*ctx->arena));
     }
+    dsp_exit_critical();
 }
 
 void omnia_dsp_init(omnia_dsp_ctx_t *ctx, omnia_dsp_delay_arena_t *arena, uint32_t sample_rate_hz)
 {
+    dsp_enter_critical();
     memset(ctx, 0, sizeof(*ctx));
     ctx->arena              = arena;
     ctx->sample_rate_hz     = (sample_rate_hz >= 8000U) ? sample_rate_hz : 48000U;
-    ctx->active_mask        = OMNIA_DSP_ALL_BYPASSED; /* По умолчанию из коробки: Bit-Perfect Direct! */
+    /* По умолчанию из коробки: безопасный тракт (subsonic HPF + лимитер), громкость с рампой.
+     * Bit-Perfect Direct (active_mask == 0) — явный выбор пользователя: полная
+     * математическая прозрачность, но лимитер/DC-guard/HPF тем самым ОТКЛЮЧАЮТСЯ. */
+    ctx->active_mask        = (uint16_t)(OMNIA_DSP_BIT_SUBSONIC_HPF | OMNIA_DSP_BIT_LIMITER);
     ctx->muted              = true;
     ctx->target_vol_db      = 0.0f;
+    ctx->current_vol_db     = 0.0f;
     ctx->current_gain_l     = 0.0f;
     ctx->current_gain_r     = 0.0f;
     ctx->wet_mix_current    = 1.0f;
@@ -526,10 +582,12 @@ void omnia_dsp_init(omnia_dsp_ctx_t *ctx, omnia_dsp_delay_arena_t *arena, uint32
     omnia_dsp_reset_states(ctx);
     recalc_all_coefficients(ctx);
     update_volume_targets(ctx, 25U);
+    dsp_exit_critical();
 }
 
 void omnia_dsp_set_sample_rate(omnia_dsp_ctx_t *ctx, uint32_t sample_rate_hz)
 {
+    dsp_enter_critical();
     if (sample_rate_hz >= 8000U && sample_rate_hz != ctx->sample_rate_hz) {
         ctx->sample_rate_hz = sample_rate_hz;
         ctx->wet_mix_slew   = calc_slew_coeff(sample_rate_hz, 30.0f);
@@ -537,84 +595,194 @@ void omnia_dsp_set_sample_rate(omnia_dsp_ctx_t *ctx, uint32_t sample_rate_hz)
         recalc_all_coefficients(ctx);
         update_volume_targets(ctx, 25U);
     }
+    dsp_exit_critical();
 }
 
 void omnia_dsp_set_mute(omnia_dsp_ctx_t *ctx, bool mute, uint16_t ramp_ms)
 {
+    dsp_enter_critical();
     ctx->muted = mute;
     update_volume_targets(ctx, ramp_ms);
+    dsp_exit_critical();
 }
 
 void omnia_dsp_set_volume(omnia_dsp_ctx_t *ctx, float vol_db, float replaygain_db, float balance, uint16_t ramp_ms)
 {
-    ctx->target_vol_db = clampf(vol_db, -96.0f, 0.0f);
-    ctx->replaygain_db = clampf(replaygain_db, -18.0f, 6.0f);
-    ctx->balance       = clampf(balance, -1.0f, 1.0f);
+    dsp_enter_critical();
+    ctx->target_vol_db = clampf(vol_db, OMNIA_VOL_MIN_DB, OMNIA_VOL_MAX_DB);
+    ctx->replaygain_db = clampf(replaygain_db, OMNIA_REGAIN_MIN_DB, OMNIA_REGAIN_MAX_DB);
+    ctx->balance       = clampf(balance, OMNIA_BALANCE_MIN, OMNIA_BALANCE_MAX);
     update_volume_targets(ctx, ramp_ms);
+    dsp_exit_critical();
 }
 
 void omnia_dsp_set_bypass_mask(omnia_dsp_ctx_t *ctx, uint16_t active_mask, uint16_t ramp_ms)
 {
+    dsp_enter_critical();
     ctx->active_mask  = active_mask;
     ctx->wet_mix_slew = calc_slew_coeff(ctx->sample_rate_hz, (float)ramp_ms);
     ctx->wet_mix_target = (active_mask != OMNIA_DSP_ALL_BYPASSED && !ctx->ab_compare_bypass) ? 1.0f : 0.0f;
     update_headroom_gain(ctx);
     update_loudness_filters(ctx);
+    dsp_exit_critical();
 }
 
 void omnia_dsp_set_ab_compare(omnia_dsp_ctx_t *ctx, bool bypass_compare)
 {
+    dsp_enter_critical();
     ctx->ab_compare_bypass = bypass_compare;
     ctx->wet_mix_slew      = calc_slew_coeff(ctx->sample_rate_hz, 25.0f);
     ctx->wet_mix_target    = (ctx->active_mask != OMNIA_DSP_ALL_BYPASSED && !bypass_compare) ? 1.0f : 0.0f;
+    dsp_exit_critical();
 }
 
 void omnia_dsp_apply_hpf_headroom(omnia_dsp_ctx_t *ctx, const omnia_hpf_headroom_t *cfg)
 {
+    dsp_enter_critical();
     ctx->hpf_cfg = *cfg;
     recalc_all_coefficients(ctx);
+    dsp_exit_critical();
 }
 
 void omnia_dsp_apply_room_peq(omnia_dsp_ctx_t *ctx, const omnia_room_peq_t *cfg)
 {
+    dsp_enter_critical();
     ctx->room_cfg = *cfg;
     recalc_all_coefficients(ctx);
+    dsp_exit_critical();
 }
 
 void omnia_dsp_apply_user_peq(omnia_dsp_ctx_t *ctx, const omnia_user_peq_t *cfg)
 {
+    dsp_enter_critical();
     ctx->user_cfg = *cfg;
     recalc_all_coefficients(ctx);
+    dsp_exit_critical();
 }
 
 void omnia_dsp_apply_anti_ad(omnia_dsp_ctx_t *ctx, const omnia_anti_ad_t *cfg)
 {
+    dsp_enter_critical();
     ctx->anti_ad_cfg = *cfg;
     recalc_all_coefficients(ctx);
+    dsp_exit_critical();
 }
 
 void omnia_dsp_apply_vbb(omnia_dsp_ctx_t *ctx, const omnia_vbb_params_t *cfg)
 {
+    dsp_enter_critical();
     ctx->vbb_cfg = *cfg;
     recalc_all_coefficients(ctx);
+    dsp_exit_critical();
 }
 
 void omnia_dsp_apply_aether(omnia_dsp_ctx_t *ctx, const omnia_aether_params_t *cfg)
 {
+    dsp_enter_critical();
     ctx->aether_cfg = *cfg;
     recalc_all_coefficients(ctx);
+    dsp_exit_critical();
 }
 
 void omnia_dsp_apply_loudness(omnia_dsp_ctx_t *ctx, const omnia_loudness_params_t *cfg)
 {
+    dsp_enter_critical();
     ctx->loudness_cfg = *cfg;
     update_loudness_filters(ctx);
+    dsp_exit_critical();
 }
 
 void omnia_dsp_apply_limiter(omnia_dsp_ctx_t *ctx, const omnia_limiter_params_t *cfg)
 {
+    dsp_enter_critical();
     ctx->limiter_cfg = *cfg;
     recalc_all_coefficients(ctx);
+    dsp_exit_critical();
+}
+
+/* ========================================================================== *
+ *  ЗАВОДСКИЕ ПРЕСЕТЫ ЭФИРА (ТЗ §4.2.8) — только RAM, без Flash
+ * ========================================================================== */
+
+static const omnia_aether_params_t s_aether_factory[7] = {
+    /* 0: OFF (Bit-Perfect) — Эфир выключен, остальная цепочка нетронута */
+    { .enable = 0U, .bass_keep_mono = 1U, .side_hpf_en = 1U, .crossfeed_en = 0U,
+      .master_blend = 0.00f, .width = 1.00f, .center_anchor_db = 0.0f,
+      .bass_xover_hz = 110.0f, .side_hpf_hz = 45.0f,
+      .air_gain_db = 0.0f, .air_freq_hz = 10500.0f, .air_q = 0.75f, .de_harsh = 0.0f,
+      .depth_amount = 0.0f, .stage_size_ms = 4.0f, .triode_warmth = 0.0f,
+      .crossfeed_level = 0.30f, .crossfeed_fc_hz = 700.0f },
+    /* 1: Natural Studio — лёгкое раскрытие сцены без гипертрофии */
+    { .enable = 1U, .bass_keep_mono = 1U, .side_hpf_en = 1U, .crossfeed_en = 0U,
+      .master_blend = 0.75f, .width = 1.05f, .center_anchor_db = 0.5f,
+      .bass_xover_hz = 110.0f, .side_hpf_hz = 45.0f,
+      .air_gain_db = 1.5f, .air_freq_hz = 10000.0f, .air_q = 0.75f, .de_harsh = 0.40f,
+      .depth_amount = 0.08f, .stage_size_ms = 2.0f, .triode_warmth = 0.02f,
+      .crossfeed_level = 0.30f, .crossfeed_fc_hz = 700.0f },
+    /* 2: Wide Holographic — максимально широкая панорама */
+    { .enable = 1U, .bass_keep_mono = 1U, .side_hpf_en = 1U, .crossfeed_en = 0U,
+      .master_blend = 0.80f, .width = 1.55f, .center_anchor_db = 0.25f,
+      .bass_xover_hz = 120.0f, .side_hpf_hz = 60.0f,
+      .air_gain_db = 2.5f, .air_freq_hz = 11500.0f, .air_q = 0.70f, .de_harsh = 0.25f,
+      .depth_amount = 0.18f, .stage_size_ms = 4.2f, .triode_warmth = 0.0f,
+      .crossfeed_level = 0.30f, .crossfeed_fc_hz = 700.0f },
+    /* 3: Silk Air & Vocal — воздух и телесность вокала, сибилянты под контролем */
+    { .enable = 1U, .bass_keep_mono = 1U, .side_hpf_en = 1U, .crossfeed_en = 0U,
+      .master_blend = 0.70f, .width = 1.10f, .center_anchor_db = 1.5f,
+      .bass_xover_hz = 110.0f, .side_hpf_hz = 45.0f,
+      .air_gain_db = 3.5f, .air_freq_hz = 12000.0f, .air_q = 0.80f, .de_harsh = 0.55f,
+      .depth_amount = 0.05f, .stage_size_ms = 2.0f, .triode_warmth = 0.05f,
+      .crossfeed_level = 0.30f, .crossfeed_fc_hz = 700.0f },
+    /* 4: Tube Lounge — ламповая чётная гармоника, мягкая подача */
+    { .enable = 1U, .bass_keep_mono = 1U, .side_hpf_en = 1U, .crossfeed_en = 0U,
+      .master_blend = 0.80f, .width = 1.15f, .center_anchor_db = 0.5f,
+      .bass_xover_hz = 105.0f, .side_hpf_hz = 45.0f,
+      .air_gain_db = 1.0f, .air_freq_hz = 10000.0f, .air_q = 0.70f, .de_harsh = 0.30f,
+      .depth_amount = 0.12f, .stage_size_ms = 3.5f, .triode_warmth = 0.22f,
+      .crossfeed_level = 0.30f, .crossfeed_fc_hz = 700.0f },
+    /* 5: Concert Hall — большой зал, максимальная глубина */
+    { .enable = 1U, .bass_keep_mono = 1U, .side_hpf_en = 1U, .crossfeed_en = 0U,
+      .master_blend = 0.85f, .width = 1.60f, .center_anchor_db = 0.3f,
+      .bass_xover_hz = 110.0f, .side_hpf_hz = 55.0f,
+      .air_gain_db = 2.0f, .air_freq_hz = 11000.0f, .air_q = 0.70f, .de_harsh = 0.30f,
+      .depth_amount = 0.30f, .stage_size_ms = 9.0f, .triode_warmth = 0.04f,
+      .crossfeed_level = 0.30f, .crossfeed_fc_hz = 700.0f },
+    /* 6: Headphone Stage — бинауральный кроссфид для наушников (Bauer) */
+    { .enable = 1U, .bass_keep_mono = 1U, .side_hpf_en = 1U, .crossfeed_en = 1U,
+      .master_blend = 0.75f, .width = 1.00f, .center_anchor_db = 0.5f,
+      .bass_xover_hz = 100.0f, .side_hpf_hz = 45.0f,
+      .air_gain_db = 2.0f, .air_freq_hz = 11500.0f, .air_q = 0.80f, .de_harsh = 0.35f,
+      .depth_amount = 0.05f, .stage_size_ms = 1.5f, .triode_warmth = 0.05f,
+      .crossfeed_level = 0.65f, .crossfeed_fc_hz = 700.0f },
+};
+
+bool omnia_dsp_load_aether_factory(omnia_dsp_ctx_t *ctx, uint8_t slot)
+{
+    if (!ctx || slot >= (uint8_t)(sizeof(s_aether_factory) / sizeof(s_aether_factory[0]))) {
+        return false;
+    }
+    dsp_enter_critical();
+    ctx->aether_cfg = s_aether_factory[slot];
+    recalc_all_coefficients(ctx);
+    dsp_exit_critical();
+    return true;
+}
+
+void omnia_dsp_reset_dc_fault(omnia_dsp_ctx_t *ctx)
+{
+    if (!ctx) {
+        return;
+    }
+    dsp_enter_critical();
+    ctx->dc_fault_tripped = false;
+    ctx->clip_events      = 0U;
+    ctx->dc_track_l       = 0.0f;
+    ctx->dc_track_r       = 0.0f;
+    ctx->limiter_env      = 1.0f;
+    ctx->limiter_hold_gain = 1.0f;
+    /* Цели громкости пересчитаются с учётом текущего muted: защита не «протыкается» сама. */
+    update_volume_targets(ctx, 25U);
+    dsp_exit_critical();
 }
 
 /* ========================================================================== *
@@ -664,7 +832,7 @@ void omnia_dsp_process_block_i32(
 
     ctx->bit_perfect_active = false;
     const uint16_t mask = ctx->active_mask;
-    const float param_slew = 0.0025f;
+    const float param_slew = calc_slew_coeff(ctx->sample_rate_hz, 30.0f);
 
     for (size_t frame = 0; frame < stereo_frames; ++frame) {
         const float dry_l = sanitize_sample((float)in_lr_interleaved[frame * 2U]      * DSP_NORM_TO_FLOAT);
@@ -713,35 +881,51 @@ void omnia_dsp_process_block_i32(
                 const float rel = clampf(ctx->anti_ad_cfg.release_coeff, 0.00005f, 0.02f);
                 ctx->agc_env += rel * (peak_lr - ctx->agc_env);
             }
-            const float thresh = (ctx->anti_ad_cfg.mode == 2U) ? 0.40f : clampf(ctx->anti_ad_cfg.threshold_lin, 0.25f, 0.90f);
+            const float thresh = (ctx->anti_ad_cfg.mode == 2U) ? 0.40f : clampf(ctx->anti_ad_cfg.threshold_lin, OMNIA_ANTI_AD_THRESH_MIN, OMNIA_ANTI_AD_THRESH_MAX);
             float agc_gain = ctx->agc_makeup_lin;
             if (ctx->agc_env > thresh && ctx->agc_env > 1.0e-5f) {
-                const float ratio_comp = (ctx->anti_ad_cfg.mode == 2U) ? 0.25f : 0.50f;
-                agc_gain *= powf(thresh / ctx->agc_env, 1.0f - ratio_comp);
+                /* agc_gain *= t^(-k), k = 0.5 (Soft) / 0.75 (Aggro): s = 1/sqrt(t) — одна инструкция FPU */
+                const float t = ctx->agc_env / thresh;
+                const float s = 1.0f / sqrtf(t);
+                agc_gain *= (ctx->anti_ad_cfg.mode == 2U) ? (s * sqrtf(s)) : s;
             }
             l *= agc_gain;
             r *= agc_gain;
         }
 
-        /* --- ЗВЕНО 6: VBB / Psychoacoustic Virtual Bass --- */
+        /* --- ЗВЕНО 6: VBB / Psychoacoustic Virtual Bass ---
+         * Моно выделение НЧ -> нелинейность -> LP гармоник -> HPF постоянки -> микс.
+         * Режимы: 0 = Clean Shelf (настоящая Low Shelf, гармоник нет);
+         *         1 = Warm Harmonics (нечётные + чётные, асимметричная нелинейность);
+         *         2 = Missing Fundamental (2-я гармоника усилена, фундамент подавлен). */
         if ((mask & OMNIA_DSP_BIT_VBB_BASS) && ctx->vbb_cfg.enable && ctx->vbb_cfg.amount > 0.005f) {
             const float mono_in  = 0.5f * (l + r);
             const float low_band = biquad_step_mono_l(&ctx->vbb_extract_lp, mono_in);
             float vbb_sig = 0.0f;
 
             if (ctx->vbb_cfg.mode == 0U) {
-                /* Режим 0: плотный упругий подъём суб-нч */
-                vbb_sig = low_band * (ctx->vbb_cfg.amount * 1.4f);
+                /* Режим 0: «Чистый шелф» — упругий подъём НЧ с честной АЧХ полки */
+                vbb_sig = biquad_step_mono_l(&ctx->vbb_shelf, low_band)
+                          * clampf(ctx->vbb_cfg.mix, OMNIA_VBB_MIX_MIN, OMNIA_VBB_MIX_MAX);
             } else {
-                /* Режимы 1 и 2: генерация чётных и нечётных гармоник («Missing Fundamental») */
-                const float drv = 1.0f + clampf(ctx->vbb_cfg.drive, 0.0f, 1.0f) * 5.0f;
-                const float x   = low_band * drv;
-                const float sat = x / (1.0f + fabsf(x));
-                const float even_h = 0.35f * (x * fabsf(x)) / (1.0f + x * x);
-                float harm = biquad_step_mono_l(&ctx->vbb_harm_lp, sat + even_h);
+                /* Режимы 1 и 2: асимметричная генерация гармоник («Missing Fundamental»).
+                 * odd_h  = x/(1+|x|)   -> нечётные гармоники (3f, 5f, ...)
+                 * even_h = x^2/(1+x^2) -> чётные гармоники (2f, 4f, ...) + постоянка (снята vbb_dc_hp).
+                 * ВНИМАНИЕ: прежняя версия даже-члена (x*|x|) была НЕЧЁТНОЙ и 2-й гармоники не давала. */
+                const float drv     = 1.0f + clampf(ctx->vbb_cfg.drive, OMNIA_VBB_DRIVE_MIN, OMNIA_VBB_DRIVE_MAX) * 4.0f;
+                const float x       = low_band * drv;
+                const float odd_h   = x / (1.0f + fabsf(x));
+                const float even_h  = (x * x) / (1.0f + x * x);
+                const float w_even  = clampf(0.15f + 0.55f * ctx->vbb_cfg.drive, 0.0f, 0.70f);
+                float harm = odd_h + w_even * even_h;
+                harm = biquad_step_mono_l(&ctx->vbb_harm_lp, harm);
                 harm = biquad_step_mono_l(&ctx->vbb_dc_hp, harm);
                 const float keep_fund = (ctx->vbb_cfg.mode == 2U) ? 0.25f : 0.80f;
-                vbb_sig = (low_band * keep_fund + harm) * ctx->vbb_cfg.amount * clampf(ctx->vbb_cfg.mix, 0.0f, 1.0f) * 1.5f;
+                const float harm_gain = (ctx->vbb_cfg.mode == 2U) ? 1.25f : 1.0f;
+                vbb_sig = (low_band * keep_fund + harm * harm_gain)
+                          * ctx->vbb_cfg.amount
+                          * clampf(ctx->vbb_cfg.mix, OMNIA_VBB_MIX_MIN, OMNIA_VBB_MIX_MAX)
+                          * 1.5f;
             }
             l += vbb_sig;
             r += vbb_sig;
@@ -751,14 +935,22 @@ void omnia_dsp_process_block_i32(
         if ((mask & OMNIA_DSP_BIT_AETHER) && ctx->aether_cfg.enable) {
             ctx->aether_blend_cur += param_slew * (clampf(ctx->aether_cfg.master_blend, 0.0f, 1.0f) - ctx->aether_blend_cur);
             ctx->aether_width_cur += param_slew * (clampf(ctx->aether_cfg.width, 0.0f, 2.0f) - ctx->aether_width_cur);
+            if (fabsf(clampf(ctx->aether_cfg.master_blend, 0.0f, 1.0f) - ctx->aether_blend_cur) < 5.0e-5f) {
+                ctx->aether_blend_cur = clampf(ctx->aether_cfg.master_blend, 0.0f, 1.0f);
+            }
+            if (fabsf(clampf(ctx->aether_cfg.width, 0.0f, 2.0f) - ctx->aether_width_cur) < 5.0e-5f) {
+                ctx->aether_width_cur = clampf(ctx->aether_cfg.width, 0.0f, 2.0f);
+            }
 
             float mid  = 0.5f * (l + r) * ctx->aether_center_gain;
             float side = 0.5f * (l - r);
 
-            /* 7a. Sub-Bass Mono Lock: удерживает бочку и бас собранными по центру */
+            /* 7a. Sub-Bass Mono Lock: удерживает бочку и бас собранными по центру.
+             * ФВЧ на боковой канал (а не "side - LP(side)"): комплемент ФНЧ 2-го порядка
+             * имеет |1-H| ~ fj/fc (~-19 дБ @ 40 Гц/250 Гц) из-за фазового сдвига,
+             * честный ФВЧ даёт |H| ~ (f/fc)^2 (~-32 дБ там же). */
             if (ctx->aether_cfg.bass_keep_mono) {
-                const float side_bass = biquad_step_mono_l(&ctx->aether_bass_lp, side);
-                side -= side_bass;
+                side = biquad_step_mono_l(&ctx->aether_bass_hp, side);
             }
             /* 7b. Side HPF */
             if (ctx->aether_cfg.side_hpf_en) {
@@ -778,6 +970,9 @@ void omnia_dsp_process_block_i32(
                 float smooth_factor = 1.0f;
                 if (ctx->aether_cfg.de_harsh > 0.01f && ctx->deharsh_env > 0.06f) {
                     smooth_factor = 1.0f / (1.0f + ctx->aether_cfg.de_harsh * (ctx->deharsh_env - 0.06f) * 14.0f);
+                    if (smooth_factor < 0.5f) {
+                        smooth_factor = 0.5f; /* Не «вырезать» ВЧ больше чем на ~6 дБ */
+                    }
                 }
                 mid  += hf_delta_m * smooth_factor;
                 side += hf_delta_s * smooth_factor;
@@ -791,7 +986,9 @@ void omnia_dsp_process_block_i32(
                 ctx->arena->aether_delay_line[ctx->aether_wr_idx] = mid * 0.35f + side * 0.65f;
                 ctx->aether_wr_idx = (uint16_t)((ctx->aether_wr_idx + 1U) % OMNIA_AETHER_MAX_DELAY_SAMPLES);
 
-                /* Двухзвенный фазовый All-Pass (g = 0.618 — золотое сечение без гребёнки) */
+                /* Двухзвенный фазовый All-Pass (g = +0.618 и -0.618).
+                 * H(z) = (g + z^-1)/(1 + g*z^-1): |H(ejw)| == 1 для всех частот,
+                 * т.е. гребёнки и окраски нет, только фазовый декоррелятор. */
                 const float g  = 0.618f;
                 const float u1 = delayed - g * ctx->ap_z1;
                 const float y1 = ctx->ap_z1 + g * u1;
@@ -801,7 +998,7 @@ void omnia_dsp_process_block_i32(
                 const float y2 = ctx->ap_z2 + (-g) * u2;
                 ctx->ap_z2 = u2 - DSP_ANTI_DENORMAL;
 
-                depth_sig = y2 * clampf(ctx->aether_cfg.depth_amount, 0.0f, 0.45f);
+                depth_sig = y2 * clampf(ctx->aether_cfg.depth_amount, OMNIA_AETHER_DEPTH_MIN, OMNIA_AETHER_DEPTH_MAX);
             }
 
             /* 7e. Расширение стереобазы и обратная матрица M/S -> L/R */
@@ -822,11 +1019,25 @@ void omnia_dsp_process_block_i32(
 
             /* 7g. Наушниковый режим Bauer Crossfeed */
             if (ctx->aether_cfg.crossfeed_en && ctx->aether_cfg.crossfeed_level > 0.01f) {
-                const float fc = clampf(ctx->aether_cfg.crossfeed_fc_hz, 500.0f, 900.0f);
+                const float fc = clampf(ctx->aether_cfg.crossfeed_fc_hz, OMNIA_AETHER_XFEED_FC_MIN, OMNIA_AETHER_XFEED_FC_MAX);
                 const float a  = clampf((2.0f * (float)M_PI * fc) / (float)ctx->sample_rate_hz, 0.01f, 0.35f);
-                ctx->xfeed_lp_l += a * (wet_l - ctx->xfeed_lp_l);
-                ctx->xfeed_lp_r += a * (wet_r - ctx->xfeed_lp_r);
-                const float xf = clampf(ctx->aether_cfg.crossfeed_level, 0.0f, 1.0f) * 0.32f;
+                const float xf = clampf(ctx->aether_cfg.crossfeed_level, OMNIA_AETHER_XFEED_MIN, OMNIA_AETHER_XFEED_MAX) * 0.32f;
+                /* Bauer: межигнеральная задержка ~260 мкс в линии fed-path (не в прямом тракте!) */
+                if (ctx->arena) {
+                    const uint32_t dly = (uint32_t)(((uint64_t)ctx->sample_rate_hz * OMNIA_AETHER_XFEED_DELAY_US) / 1000000ULL);
+                    ctx->arena->xfeed_delay_l[ctx->xfeed_wr_idx] = wet_l;
+                    ctx->arena->xfeed_delay_r[ctx->xfeed_wr_idx] = wet_r;
+                    const uint16_t rd = (uint16_t)((ctx->xfeed_wr_idx + OMNIA_XFEED_DELAY_MAX_SAMPLES - (dly & (OMNIA_XFEED_DELAY_MAX_SAMPLES - 1U)))
+                                                   & (OMNIA_XFEED_DELAY_MAX_SAMPLES - 1U));
+                    const float dl = ctx->arena->xfeed_delay_l[rd];
+                    const float dr = ctx->arena->xfeed_delay_r[rd];
+                    ctx->xfeed_wr_idx = (uint16_t)((ctx->xfeed_wr_idx + 1U) & (OMNIA_XFEED_DELAY_MAX_SAMPLES - 1U));
+                    ctx->xfeed_lp_l += a * (dl - ctx->xfeed_lp_l);
+                    ctx->xfeed_lp_r += a * (dr - ctx->xfeed_lp_r);
+                } else {
+                    ctx->xfeed_lp_l += a * (wet_l - ctx->xfeed_lp_l);
+                    ctx->xfeed_lp_r += a * (wet_r - ctx->xfeed_lp_r);
+                }
                 const float nl = (wet_l + xf * ctx->xfeed_lp_r) * (1.0f - xf * 0.35f);
                 const float nr = (wet_r + xf * ctx->xfeed_lp_l) * (1.0f - xf * 0.35f);
                 wet_l = nl;
@@ -846,7 +1057,9 @@ void omnia_dsp_process_block_i32(
         /* --- Физическое выравнивание АС (Room Time-Alignment Delay + Trim + Phase 0°/180°):
          *     выполняется ПОСЛЕ M/S матрицы AETHER, чтобы не вносить гребенчатый сдвиг фаз в AETHER,
          *     но точно свести время прихода звуковой волны левой и правой колонки в точку прослушивания! --- */
-        if ((mask & OMNIA_DSP_BIT_ROOM_PEQ) && ctx->room_cfg.enable) {
+        /* 8b: тайм-алайн/трим/фаза АС — отдельный блок (OMNIA_DSP_BIT_ROOM_DELAY),
+         * не зависит от ROOM_PEQ: выравнивание колонок можно включить без эквалайзера. */
+        if ((mask & OMNIA_DSP_BIT_ROOM_DELAY) && ctx->room_cfg.enable) {
             ctx->room_delay_cur_l += 0.002f * (ctx->room_delay_target_l - ctx->room_delay_cur_l);
             ctx->room_delay_cur_r += 0.002f * (ctx->room_delay_target_r - ctx->room_delay_cur_r);
             if (fabsf(ctx->room_delay_target_l - ctx->room_delay_cur_l) < 1.0e-4f) {
@@ -857,6 +1070,12 @@ void omnia_dsp_process_block_i32(
             }
             ctx->room_gain_cur_l += param_slew * (ctx->room_gain_target_l - ctx->room_gain_cur_l);
             ctx->room_gain_cur_r += param_slew * (ctx->room_gain_target_r - ctx->room_gain_cur_r);
+            if (fabsf(ctx->room_gain_target_l - ctx->room_gain_cur_l) < 5.0e-5f) {
+                ctx->room_gain_cur_l = ctx->room_gain_target_l;
+            }
+            if (fabsf(ctx->room_gain_target_r - ctx->room_gain_cur_r) < 5.0e-5f) {
+                ctx->room_gain_cur_r = ctx->room_gain_target_r;
+            }
 
             if (ctx->arena && (ctx->room_delay_cur_l > 0.001f || ctx->room_delay_cur_r > 0.001f)) {
                 const uint32_t mask_ring = OMNIA_ROOM_DELAY_RING_SIZE - 1U;
@@ -864,17 +1083,26 @@ void omnia_dsp_process_block_i32(
                 ctx->arena->room_delay_l[wr] = l;
                 ctx->arena->room_delay_r[wr] = r;
 
-                const uint32_t dl_int  = (uint32_t)ctx->room_delay_cur_l;
-                const float    dl_frac = ctx->room_delay_cur_l - (float)dl_int;
-                const float    sl0     = ctx->arena->room_delay_l[(wr - dl_int) & mask_ring];
-                const float    sl1     = ctx->arena->room_delay_l[(wr - dl_int - 1U) & mask_ring];
-                l = sl0 + dl_frac * (sl1 - sl0);
+                /* Кубика Catmull-Rom: плоская АЧХ на ВЧ; линейная интерполяция резала ВЧ к -3..-6 дБ. */
+                const float pos_l = (float)wr - ctx->room_delay_cur_l;
+                const int32_t i0_l = (int32_t)floorf(pos_l);
+                const float mu_l = pos_l - (float)i0_l;
+                const uint32_t a_l = (uint32_t)(i0_l - 1) & mask_ring;
+                const uint32_t b_l = (uint32_t)(i0_l) & mask_ring;
+                const uint32_t c_l = (uint32_t)(i0_l + 1) & mask_ring;
+                const uint32_t d_l = (uint32_t)(i0_l + 2) & mask_ring;
+                l = cubic_catmull_rom(ctx->arena->room_delay_l[a_l], ctx->arena->room_delay_l[b_l],
+                                      ctx->arena->room_delay_l[c_l], ctx->arena->room_delay_l[d_l], mu_l);
 
-                const uint32_t dr_int  = (uint32_t)ctx->room_delay_cur_r;
-                const float    dr_frac = ctx->room_delay_cur_r - (float)dr_int;
-                const float    sr0     = ctx->arena->room_delay_r[(wr - dr_int) & mask_ring];
-                const float    sr1     = ctx->arena->room_delay_r[(wr - dr_int - 1U) & mask_ring];
-                r = sr0 + dr_frac * (sr1 - sr0);
+                const float pos_r = (float)wr - ctx->room_delay_cur_r;
+                const int32_t i0_r = (int32_t)floorf(pos_r);
+                const float mu_r = pos_r - (float)i0_r;
+                const uint32_t a_r = (uint32_t)(i0_r - 1) & mask_ring;
+                const uint32_t b_r = (uint32_t)(i0_r) & mask_ring;
+                const uint32_t c_r = (uint32_t)(i0_r + 1) & mask_ring;
+                const uint32_t d_r = (uint32_t)(i0_r + 2) & mask_ring;
+                r = cubic_catmull_rom(ctx->arena->room_delay_r[a_r], ctx->arena->room_delay_r[b_r],
+                                      ctx->arena->room_delay_r[c_r], ctx->arena->room_delay_r[d_r], mu_r);
 
                 ctx->room_delay_wr_idx = (uint16_t)((wr + 1U) & mask_ring);
             }
@@ -886,6 +1114,11 @@ void omnia_dsp_process_block_i32(
         /* --- Плавный обход и честное A/B сравнение с выравниванием громкости по RMS --- */
         ctx->wet_mix_target = (mask != OMNIA_DSP_ALL_BYPASSED && !ctx->ab_compare_bypass) ? 1.0f : 0.0f;
         ctx->wet_mix_current += ctx->wet_mix_slew * (ctx->wet_mix_target - ctx->wet_mix_current);
+        /* Прилипание half-ulp: без снепа сглаживатель замерзает на delta ~= 1.4e-5,
+         * и цель никогда не достигается детерминированно. */
+        if (fabsf(ctx->wet_mix_target - ctx->wet_mix_current) < 5.0e-5f) {
+            ctx->wet_mix_current = ctx->wet_mix_target;
+        }
 
         const float p_in  = 0.5f * (dry_l * dry_l + dry_r * dry_r);
         const float p_out = 0.5f * (l * l + r * r);
@@ -912,6 +1145,10 @@ void omnia_dsp_process_block_i32(
         if (fabsf(ctx->target_gain_r - ctx->current_gain_r) < 1.0e-5f) {
             ctx->current_gain_r = ctx->target_gain_r;
         }
+        ctx->current_vol_db += ctx->gain_slewing_coeff * (ctx->target_vol_db - ctx->current_vol_db);
+        if (fabsf(ctx->target_vol_db - ctx->current_vol_db) < 0.01f) {
+            ctx->current_vol_db = ctx->target_vol_db;
+        }
         l *= ctx->current_gain_l;
         r *= ctx->current_gain_r;
 
@@ -921,7 +1158,9 @@ void omnia_dsp_process_block_i32(
             float needed_gain = 1.0f;
             if (ahead_peak > ctx->limiter_ceiling_lin && ahead_peak > 1.0e-6f) {
                 needed_gain = ctx->limiter_ceiling_lin / ahead_peak;
-                ctx->clip_events++;
+                if (ctx->clip_events < 0xFFFFU) {
+                    ctx->clip_events++; /* Насыщающий счётчик: не обнуляется, не переполняется */
+                }
             }
 
             /* Удержание пикового минимума на всё время прохождения пика по линии предпросмотра */
@@ -978,17 +1217,22 @@ void omnia_dsp_process_block_i32(
         if (abs_out_l > ctx->peak_out_l) ctx->peak_out_l = abs_out_l;
         if (abs_out_r > ctx->peak_out_r) ctx->peak_out_r = abs_out_r;
 
-        /* Мягкий треугольный 24-bit TPDF Dither при активной обработке */
+        /* Мягкий треугольный 24-bit TPDF Dither при активной обработке.
+         * НЕЗАВИСИМЫЙ шум на L и R (коррелированная пара ±d создавала бы
+         * промышленный шум с межканальной корреляцией = 1 в тихих местах). */
         if (ctx->limiter_cfg.tpdf_dither_en && (abs_out_l > 1.0e-7f || abs_out_r > 1.0e-7f)) {
-            const float r1 = (float)(xorshift32(&ctx->prng_state) & 0xFFFFU) * (1.0f / 65536.0f);
-            const float r2 = (float)(xorshift32(&ctx->prng_state) & 0xFFFFU) * (1.0f / 65536.0f);
-            const float dither = (r1 - r2) * (1.0f / 8388608.0f); /* 1 LSB на уровне 24 бит */
-            l = clampf(l + dither, -0.999999f, 0.999999f);
-            r = clampf(r - dither, -0.999999f, 0.999999f);
+            const float ra = (float)(xorshift32(&ctx->prng_state) & 0xFFFFU) * (1.0f / 65536.0f);
+            const float rb = (float)(xorshift32(&ctx->prng_state) & 0xFFFFU) * (1.0f / 65536.0f);
+            const float rc = (float)(xorshift32(&ctx->prng_state) & 0xFFFFU) * (1.0f / 65536.0f);
+            const float rd = (float)(xorshift32(&ctx->prng_state) & 0xFFFFU) * (1.0f / 65536.0f);
+            const float dith_l = (ra - rb) * (1.0f / 8388608.0f); /* ±1 LSB 24 bit */
+            const float dith_r = (rc - rd) * (1.0f / 8388608.0f);
+            l = clampf(l + dith_l, -0.999999f, 0.999999f);
+            r = clampf(r + dith_r, -0.999999f, 0.999999f);
         }
 
-        out_lr_interleaved[frame * 2U]      = (int32_t)(l * DSP_SCALE_TO_INT32);
-        out_lr_interleaved[frame * 2U + 1U] = (int32_t)(r * DSP_SCALE_TO_INT32);
+        out_lr_interleaved[frame * 2U]      = float_to_i32_sat(l);
+        out_lr_interleaved[frame * 2U + 1U] = float_to_i32_sat(r);
     }
 }
 
@@ -997,6 +1241,9 @@ void omnia_dsp_read_and_reset_meters(omnia_dsp_ctx_t *ctx, omnia_signal_meters_t
     if (!out_meters) {
         return;
     }
+    /* Чтение+сброс пиков должно быть атомарно относительно DSP ISR:
+     * иначе пик, записанный ISR между чтением и очисткой, теряется навсегда. */
+    dsp_enter_critical();
     out_meters->in_peak_l_dbfs  = lin_to_db(ctx->peak_in_l);
     out_meters->in_peak_r_dbfs  = lin_to_db(ctx->peak_in_r);
     out_meters->out_peak_l_dbfs = lin_to_db(ctx->peak_out_l);
@@ -1008,4 +1255,5 @@ void omnia_dsp_read_and_reset_meters(omnia_dsp_ctx_t *ctx, omnia_signal_meters_t
     ctx->peak_out_l       = 0.0f;
     ctx->peak_out_r       = 0.0f;
     ctx->min_limiter_gain = 1.0f;
+    dsp_exit_critical();
 }

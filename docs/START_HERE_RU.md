@@ -40,10 +40,9 @@ pio run -e esp32s3_omnia
 Без оборудования можно проверить:
 
 ```sh
-python -m unittest discover -s tests -p test_bench.py -v
-gcc -O2 -Wall -Wextra -Werror -Ishared -Isrc/at32/include tests/test_dsp_and_proto.c src/at32/dsp_engine.c src/at32/asrc_farrow.c -lm -o omnia-tests
-./omnia-tests
+bash tests/run_host_tests.sh
 ```
+(внутри — весь комплект: C-наборы, санитайзеры ASan/UBSan, python unittest; см. также `tests/test_dsp_quality.c` — спектральные и битовые проверки VBB/AETHER)
 
 После сборки AT32 проверка расположения памяти в конкретном ELF (PlatformIO устанавливает `pyelftools`):
 

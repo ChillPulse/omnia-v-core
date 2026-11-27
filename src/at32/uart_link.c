@@ -24,6 +24,41 @@ static bool                 g_have_rx_byte = false;
 static omnia_proto_parser_t g_parser;
 static omnia_dsp_ctx_t     *g_dsp            = NULL;
 
+/* Повторы команд с тем же SEQ не должны исполняться дважды (например, после потери
+ * ACK на линии и повторной отправки ESP). Запоминаем последние 8 ответов.
+ * GET_SYS_INFO исключён: он без побочных эффектов и повторяет себя сам. */
+#define OMNIA_DEDUP_SLOTS 8U
+static uint8_t g_dedup_seq[OMNIA_DEDUP_SLOTS];
+static uint8_t g_dedup_cmd[OMNIA_DEDUP_SLOTS];
+static uint8_t g_dedup_res[OMNIA_DEDUP_SLOTS];
+static uint8_t g_dedup_next      = 0U;
+static bool    g_dedup_full      = false;
+
+static bool dedup_lookup(uint8_t seq, uint8_t cmd, uint8_t *out_res)
+{
+    const uint8_t n = g_dedup_full ? OMNIA_DEDUP_SLOTS : g_dedup_next;
+    for (uint8_t i = 0U; i < n; ++i) {
+        if (g_dedup_seq[i] == seq && g_dedup_cmd[i] == cmd) {
+            if (out_res) {
+                *out_res = g_dedup_res[i];
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+static void dedup_store(uint8_t seq, uint8_t cmd, uint8_t res)
+{
+    g_dedup_seq[g_dedup_next] = seq;
+    g_dedup_cmd[g_dedup_next] = cmd;
+    g_dedup_res[g_dedup_next] = res;
+    g_dedup_next = (uint8_t)((g_dedup_next + 1U) % OMNIA_DEDUP_SLOTS);
+    if (g_dedup_next == 0U) {
+        g_dedup_full = true;
+    }
+}
+
 static void uart1_write_blocking(const uint8_t *data, size_t len)
 {
     for (size_t i = 0; i < len; ++i) {
@@ -76,7 +111,7 @@ void omnia_uart_send_status_now(void)
     st.cpu_load_percent  = omnia_i2s_get_cpu_load_pct();
     st.dc_fault_tripped  = g_dsp->dc_fault_tripped ? 1U : 0U;
     st.clip_events       = g_dsp->clip_events;
-    st.current_vol_db    = g_dsp->target_vol_db;
+    st.current_vol_db    = g_dsp->current_vol_db;  /* Сглаженное значение с панелью рампы */
     st.usb_streaming     = omnia_usb_dac_is_streaming() ? 1U : 0U;
     st.bt_codec_id       = omnia_bt_receiver_get_codec();
     st.usb_trigger_en    = trig.enable_auto_switch;
@@ -106,9 +141,9 @@ static void send_sys_info(uint8_t seq)
     omnia_sys_info_t info;
     memset(&info, 0, sizeof(info));
     info.fw_major          = 2U;
-    info.fw_minor          = 2U;
+    info.fw_minor          = 3U;   /* 2.3.0: factory AETHER, RESET_DC_FAULT, BIT_ROOM_DELAY */
     info.fw_patch          = 0U;
-    info.ext_flash_present = (fl && fl->present) ? fl->bus_type : 0U;
+    info.ext_flash_present = (fl && fl->present) ? 1U : 0U;  /* 0/1-флаг присутствия, не bus_type! */
     info.sram_size_kb      = omnia_get_sram_size_kb();
     info.sysclk_hz         = system_core_clock;
     info.ext_flash_jedec   = fl ? fl->jedec_id : 0U;
@@ -121,6 +156,15 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
 {
     omnia_err_code_t res = OMNIA_STATUS_OK;
     const uint16_t   len = hdr->payload_len;
+    const bool want_ack = (OMNIA_GET_FLAGS(hdr->ver_flags) & OMNIA_FLAG_ACK_REQ) != 0U;
+
+    if (want_ack && hdr->cmd != OMNIA_CMD_GET_SYS_INFO) {
+        uint8_t prev_res = 0U;
+        if (dedup_lookup(hdr->seq, hdr->cmd, &prev_res)) {
+            send_ack(hdr->seq, hdr->cmd, (omnia_err_code_t)prev_res);  /* Повтор: отвечаем кэшированным результатом */
+            return;
+        }
+    }
 
     switch (hdr->cmd) {
     case OMNIA_CMD_MUTE: {
@@ -330,6 +374,27 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         }
         break;
 
+    case OMNIA_CMD_RESET_DC_FAULT:
+        /* Сервисная команда: снять защёлкнутую защиту от постоянки и счётчик клипов.
+         * Громкость сама не поднимается: цели пересчитаются с текущим muted. */
+        if (len != 0U) {
+            res = OMNIA_STATUS_ERR_INVALID_ARG;
+        } else {
+            omnia_dsp_reset_dc_fault(g_dsp);
+        }
+        break;
+
+    case OMNIA_CMD_LOAD_FACTORY_AETHER:
+        if (omnia_dsp_validate_payload(hdr->cmd, pay, len)) {
+            const omnia_factory_aether_t *fa = (const omnia_factory_aether_t *)pay;
+            if (!omnia_dsp_load_aether_factory(g_dsp, fa->slot)) {
+                res = OMNIA_STATUS_ERR_INVALID_ARG;
+            }
+        } else {
+            res = OMNIA_STATUS_ERR_INVALID_ARG;
+        }
+        break;
+
     case OMNIA_CMD_GET_SYS_INFO:
         send_sys_info(hdr->seq);
         return;
@@ -342,7 +407,8 @@ static void dispatch_rx_frame(const omnia_frame_hdr_t *hdr, const uint8_t *pay)
         break;
     }
 
-    if (OMNIA_GET_FLAGS(hdr->ver_flags) & OMNIA_FLAG_ACK_REQ) {
+    if (want_ack) {
+        dedup_store(hdr->seq, hdr->cmd, (uint8_t)res);
         send_ack(hdr->seq, hdr->cmd, res);
     }
 }

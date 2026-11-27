@@ -58,6 +58,8 @@ typedef enum {
     OMNIA_CMD_LOAD_LIMITER          = 0x17,
     OMNIA_CMD_SET_BYPASS_MASK       = 0x18,
     OMNIA_CMD_PRESET_OP             = 0x19,
+    OMNIA_CMD_RESET_DC_FAULT        = 0x1A, /* Сервис: сброс аварийной защиты от постоянки и счётчика клипов */
+    OMNIA_CMD_LOAD_FACTORY_AETHER   = 0x1B, /* Заводской пресет Эфира (7 шт.) в RAM, без записи во Flash */
 
     /* Управление периферией, триггером USB-DAC и секвенсором УМЗЧ */
     OMNIA_CMD_USB_TRIGGER_CFG       = 0x20, /* Настройка включаемого Авто-триггера USB-DAC (+5V PB9 / SOF) */
@@ -160,6 +162,7 @@ typedef enum {
 #define OMNIA_DSP_BIT_AETHER            (1U << 6)
 #define OMNIA_DSP_BIT_LOUDNESS          (1U << 7)
 #define OMNIA_DSP_BIT_LIMITER           (1U << 8)
+#define OMNIA_DSP_BIT_ROOM_DELAY        (1U << 9)  /* Отдельный блок: тайм-алайн/фаза/трим АС, не зависит от ROOM_PEQ */
 #define OMNIA_DSP_ALL_BYPASSED          (0U)
 
 #define OMNIA_MAX_ROOM_PEQ_BANDS        5U
@@ -188,7 +191,7 @@ typedef struct {
 /* 0x03: CMD_SET_VOLUME */
 typedef struct {
     float    volume_db;         /* Основная громкость: -96.0 .. 0.0 dB (0.0 dB = 100% Bit-Perfect) */
-    float    replaygain_db;     /* Поправка ReplayGain из тега трека: -15.0 .. +6.0 dB */
+    float    replaygain_db;     /* Поправка ReplayGain из тега трека: -18.0 .. +6.0 dB */
     float    balance;           /* Баланс L/R: -1.0 (влево) .. 0.0 (центр) .. +1.0 (вправо) */
     uint16_t ramp_ms;           /* Время плавного перехода (15 .. 100 мс) */
 } omnia_cmd_volume_t;
@@ -288,7 +291,7 @@ typedef struct {
     float    de_harsh;          /* Динамическое подавление сибилянтов «с-ц-ш» (0.0 .. 1.0) */
 
     float    depth_amount;      /* Глубина 3D-эшелонирования за линию АС (0.0 .. 0.45) */
-    float    stage_size_ms;     /* Размер акустического пространства в мс (0.5 .. 12.0 мс) */
+    float    stage_size_ms;     /* Размер акустического пространства в мс (0.4 .. 12.0 мс) */
     float    triode_warmth;     /* Чётная 2-я ламповая гармоника (0.0 .. 0.30) */
     float    crossfeed_level;   /* Глубина наушникового Crossfeed (0.0 .. 1.0) */
     float    crossfeed_fc_hz;   /* Частота тени головы Crossfeed (500.0 .. 900.0 Гц) */
@@ -323,6 +326,15 @@ typedef struct {
     uint8_t  slot_index;        /* Номер слота 0 .. 31 */
     char     name[24];          /* Имя пресета (UTF-8, null-terminated) */
 } omnia_preset_op_t;
+
+/* 0x1A: CMD_RESET_DC_FAULT (payload не требуется; идемпотентно, безопасно при повторах) */
+
+/* 0x1B: CMD_LOAD_FACTORY_AETHER */
+typedef struct {
+    uint8_t  slot;              /* 0 = OFF (Bit-Perfect), 1 = Natural Studio, 2 = Wide Holographic,
+                                   3 = Silk Air & Vocal, 4 = Tube Lounge, 5 = Concert Hall,
+                                   6 = Headphone Stage */
+} omnia_factory_aether_t;
 
 /* 0x20: OMNIA_CMD_USB_TRIGGER_CFG — настройка включаемой Триггер-функции звуковой карты USB-DAC */
 typedef struct {

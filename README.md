@@ -4,7 +4,7 @@
 
 > **Начинайте с [пошагового руководства](docs/START_HERE_RU.md) и [нового комплекта схем соединений](docs/SCHEMES_INDEX_RU.md).** Прошивки и утилита ещё не проверены на вашей аппаратуре. Не подключайте усилитель, K2 и динамики. Рисунки сигналов и управления усилителем не являются проверенными монтажными схемами. Сервисное меню, дисплей, полноценное ИК-обучение с действиями, приложения, PWA и большинство функций медиаплеера пока не готовы. Bluetooth отложен до фото; код Bluetooth и USB Audio по умолчанию выключен. Автоматического изменения USD/option bytes больше нет.
 
-[Флагманское видение (правило проекта)](docs/FLAGSHIP_VISION_RU.md) · [Статус и опыт](docs/PROJECT_STATUS_RU.md) · [Справочные фото плат](docs/reference_photos/) · [План и критерии приёмки](docs/ROADMAP_AND_ACCEPTANCE_RU.md) · [BOM и открытые решения](docs/BOM_AND_DECISIONS_RU.md) · [Проверка команд DSP](docs/DSP_CONTROL_VALIDATION_RU.md) · [Карта проверок и протокол опыта](docs/BENCH_VERIFICATION_RECORD_RU.md) · [Известная аппаратная база](docs/KNOWN_BOARD_BASELINE_RU.md) · [Платы в GitHub-ТЗ](docs/BOARDS_FROM_GITHUB_RU.md) · [База улучшений](docs/IMPROVEMENTS_BASELINE_RU.md) · [Начатый аудит требований](docs/REQUIREMENTS_AUDIT_RU.md) · [Версии сборки](docs/BUILD_REPRODUCIBILITY_RU.md) · [Риски UART](docs/UART_RELIABILITY_RU.md) · [Проект автомата переключения](docs/SWITCH_STATE_MACHINE_RU.md) · [Рабочий STM32 + ё-радио прототип](docs/WORKING_STM32_YORADIO_REFERENCE_RU.md)
+[История изменений (fw 2.3.0)](CHANGELOG.md) · [Модель конкурентности](docs/CONCURRENCY_MODEL_RU.md) · [Флагманское видение (правило проекта)](docs/FLAGSHIP_VISION_RU.md) · [Статус и опыт](docs/PROJECT_STATUS_RU.md) · [Справочные фото плат](docs/reference_photos/) · [План и критерии приёмки](docs/ROADMAP_AND_ACCEPTANCE_RU.md) · [BOM и открытые решения](docs/BOM_AND_DECISIONS_RU.md) · [Проверка команд DSP](docs/DSP_CONTROL_VALIDATION_RU.md) · [Карта проверок и протокол опыта](docs/BENCH_VERIFICATION_RECORD_RU.md) · [Известная аппаратная база](docs/KNOWN_BOARD_BASELINE_RU.md) · [Платы в GitHub-ТЗ](docs/BOARDS_FROM_GITHUB_RU.md) · [База улучшений](docs/IMPROVEMENTS_BASELINE_RU.md) · [Начатый аудит требований](docs/REQUIREMENTS_AUDIT_RU.md) · [Версии сборки](docs/BUILD_REPRODUCIBILITY_RU.md) · [Риски UART](docs/UART_RELIABILITY_RU.md) · [Проект автомата переключения](docs/SWITCH_STATE_MACHINE_RU.md) · [Рабочий STM32 + ё-радио прототип](docs/WORKING_STM32_YORADIO_REFERENCE_RU.md)
 
 ## Предусмотренная архитектура
 
@@ -28,12 +28,10 @@ pio run -e at32f403_dsp
 pio run -e esp32s3_omnia
 ```
 
-Локальный тест DSP и протокола на компьютере:
+Полный комплекс тестов на компьютере (DSP + протокол + политика управления + валидация; один запуск):
 
 ```sh
-gcc -O2 -Wall -Wextra -Werror -Ishared -Isrc/at32/include \
-  tests/test_dsp_and_proto.c src/at32/dsp_engine.c src/at32/asrc_farrow.c -lm -o /tmp/omnia-tests
-/tmp/omnia-tests
+bash tests/run_host_tests.sh
 ```
 
 Тесты на компьютере не подтверждают электрическую безопасность, бесщёлчковость, совместимость USB/Bluetooth и работу реального оборудования. Артефакты CI — экспериментальные, не для немедленного подключения усилителя.

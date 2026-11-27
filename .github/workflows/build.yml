@@ -2,7 +2,7 @@ name: OMNIA v2.0 Dual-MCU Build & DSP Tests
 
 on:
   push:
-    branches: [ "main", "wip/v2.2-direct-safety" ]
+    branches: [ "main", "wip/v2.2-direct-safety", "arena/**" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -13,50 +13,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compile & Run Studio DSP + ASRC + Direct Protocol Suite
+      - name: Compile & Run Full Host Test Matrix (single source: tests/run_host_tests.sh)
+        run: bash tests/run_host_tests.sh
+
+  static-analysis:
+    name: Static Analysis (gcc -fanalyzer)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: gcc -fanalyzer on all host-buildable units
         run: |
-          gcc -O2 -Wall -Wextra -Werror \
-            -Ishared -Isrc/at32/include \
-            tests/test_dsp_and_proto.c src/at32/dsp_engine.c src/at32/asrc_farrow.c \
-            -lm -o tests/test_runner
-          ./tests/test_runner
-          gcc -O3 -ffast-math -Wall -Wextra -Werror \
-            -Ishared -Isrc/at32/include \
-            tests/test_dsp_and_proto.c src/at32/dsp_engine.c src/at32/asrc_farrow.c \
-            -lm -o /tmp/omnia-dsp-fast
-          /tmp/omnia-dsp-fast
-          gcc -O2 -Wall -Wextra -Werror -Ishared tests/test_protocol_stream.c -o /tmp/omnia-stream-test
-          /tmp/omnia-stream-test
-          gcc -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Ishared \
-            tests/test_protocol_stream.c -o /tmp/omnia-stream-san
-          /tmp/omnia-stream-san
-          python -m unittest discover -s tests -p test_bench.py -v
-          python -m unittest discover -s tests -p test_project_contract.py -v
-          python -m unittest discover -s tests -p test_at32_sdk_lock.py -v
-          gcc -O2 -Wall -Wextra -Werror -Isrc/esp32/include \
-            tests/test_bench_command.c src/esp32/bench_command.c -o /tmp/omnia-bench-test
-          /tmp/omnia-bench-test
-          gcc -O2 -Wall -Wextra -Werror -Ishared -Isrc/esp32/include \
-            tests/test_bridge_protocol.c -o /tmp/omnia-bridge-test
-          /tmp/omnia-bridge-test
-          gcc -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Ishared -Isrc/esp32/include \
-            tests/test_bridge_protocol.c -o /tmp/omnia-bridge-san
-          /tmp/omnia-bridge-san
-          gcc -O2 -Wall -Wextra -Werror -Isrc/esp32/include \
-            tests/test_ir_nec.c src/esp32/ir_nec.c -o /tmp/omnia-ir-test
-          /tmp/omnia-ir-test
-          gcc -O2 -Wall -Wextra -Werror -Itests/stubs -Ishared \
-            tests/test_storage_disabled.c src/at32/spi_flash_sfdp.c -o /tmp/omnia-storage-test
-          /tmp/omnia-storage-test
-          gcc -O3 -ffast-math -Wall -Wextra -Werror -Ishared -Isrc/at32/include \
-            tests/test_control_policy.c -o /tmp/omnia-policy-test
-          /tmp/omnia-policy-test
-          gcc -O3 -ffast-math -Wall -Wextra -Werror -Ishared -Isrc/at32/include \
-            tests/test_dsp_validation.c src/at32/dsp_validation.c -o /tmp/omnia-validation-test
-          /tmp/omnia-validation-test
-          gcc -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Ishared -Isrc/at32/include \
-            tests/test_dsp_validation.c src/at32/dsp_validation.c -o /tmp/omnia-validation-san
-          /tmp/omnia-validation-san
+          set -e
+          for f in src/at32/dsp_engine.c src/at32/asrc_farrow.c src/at32/dsp_validation.c src/esp32/bench_command.c src/esp32/ir_nec.c; do
+            echo "== analyzer: $f =="
+            gcc -O2 -Wall -Wextra -fanalyzer -Ishared -Isrc/at32/include -Isrc/esp32/include -c "$f" -o /tmp/$(basename "$f" .c).o
+          done
+          echo "== analyzer: src/at32/spi_flash_sfdp.c (stubs HAL) =="
+          gcc -O2 -Wall -Wextra -fanalyzer -Itests/stubs -Ishared -c src/at32/spi_flash_sfdp.c -o /tmp/spi_flash_sfdp.o
 
   build-at32-dsp:
     name: Build AT32F403ACGU7 Studio DSP (PlatformIO)
@@ -74,7 +47,7 @@ jobs:
           key: ${{ runner.os }}-pio-at32-${{ hashFiles('platformio.ini') }}
       - name: Install PlatformIO & Build AT32F403 Firmware
         run: |
-          pip install --upgrade platformio
+          pip install --upgrade 'platformio==6.2.0'
           pio run -e at32f403_dsp
           python scripts/check_at32_elf.py .pio/build/at32f403_dsp/firmware.elf
           python tests/test_at32_elf_check.py .pio/build/at32f403_dsp/firmware.elf
@@ -92,8 +65,9 @@ jobs:
     needs: dsp-unit-tests
     steps:
       - uses: actions/checkout@v4
+      # espressif/esp-idf-ci-action v1.2.0 (пин по полному SHA — тег может двигаться)
       - name: Build ESP32-S3 Firmware via Official ESP-IDF v5.3
-        uses: espressif/esp-idf-ci-action@v1
+        uses: espressif/esp-idf-ci-action@e6f5c74232b1ccd4c97ed641f1e48553853f1fd5
         with:
           esp_idf_version: v5.3
           target: esp32s3
@@ -119,7 +93,7 @@ jobs:
           python-version: '3.11'
       - name: Install PlatformIO and build
         run: |
-          pip install --upgrade platformio
+          pip install --upgrade 'platformio==6.2.0'
           pio run -e esp32s3_omnia
       - uses: actions/upload-artifact@v4
         with:
